@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Env: .env.example is committed, real env files are not
+.env
+.env.*
+!.env.example
+
+# Local artefacts
+uploads/
+*.log
+coverage/
+
+# OS
+.DS_Store

@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# One git repository holds two independent projects, so a single hooks path has
+# to serve both. Each project keeps its own lint-staged configuration and its own
+# ESLint and Prettier; this hook only decides which of them has staged changes
+# and delegates. Nothing is shared between the projects except this delegation.
+#
+# Enabled with: git config core.hooksPath .githooks
+
+set -e
+
+root=$(git rev-parse --show-toplevel)
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+for project in server client; do
+  if printf '%s\n' "$staged" | grep -q "^$project/"; then
+    if [ ! -d "$root/$project/node_modules" ]; then
+      printf 'skipping %s checks: node_modules is missing, run npm install\n' "$project"
+      continue
+    fi
+    printf 'running %s checks\n' "$project"
+    (cd "$root/$project" && npx --no-install lint-staged)
+  fi
+done
