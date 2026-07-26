@@ -16,6 +16,7 @@ import {
   deleteByNotebook,
 } from "@/vector/chunk.vector-repository";
 import { reconcileOrphans } from "@/workers/cleanup.worker";
+import { TEST_USER_ID } from "./setup";
 
 vi.mock("@/queues", () => ({
   enqueueIngest: vi.fn(() => Promise.resolve({ id: "1" })),
@@ -42,7 +43,10 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  const [notebook] = await db.insert(notebooks).values({ name: "Ingestion" }).returning();
+  const [notebook] = await db
+    .insert(notebooks)
+    .values({ name: "Ingestion", userId: TEST_USER_ID })
+    .returning();
   notebookId = notebook?.id ?? "";
 });
 
@@ -181,7 +185,10 @@ describe("full ingestion pipeline", () => {
     const sourceId = await addSource("TEXT", "notes.md", fixture("notes.md"));
     await runIngestion(sourceId);
 
-    const [other] = await db.insert(notebooks).values({ name: "Other" }).returning();
+    const [other] = await db
+      .insert(notebooks)
+      .values({ name: "Other", userId: TEST_USER_ID })
+      .returning();
     expect(await countByNotebook(other?.id ?? "")).toBe(0);
     expect(await countByNotebook(notebookId)).toBeGreaterThan(0);
 

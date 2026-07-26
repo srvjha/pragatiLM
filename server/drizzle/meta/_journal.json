@@ -15,6 +15,13 @@
       "when": 1785072281056,
       "tag": "0001_notebook_ro_role",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785073884805,
+      "tag": "0002_flimsy_vermin",
+      "breakpoints": true
     }
   ]
 }

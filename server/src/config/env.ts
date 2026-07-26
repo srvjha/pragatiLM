@@ -27,7 +27,24 @@ const nonNegativeInt = z.coerce.number().int().nonnegative();
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   API_PORT: port.default(4000),
-  WEB_ORIGIN: z.url(),
+  // One or more origins, comma separated. A list rather than a single value
+  // because the web app and the API are separate deployments: a preview build,
+  // a local client that landed on a different port, and production are all
+  // legitimately different origins talking to the same API.
+  WEB_ORIGIN: z
+    .string()
+    .min(1)
+    .transform((value) =>
+      value
+        .split(",")
+        .map((origin) => origin.trim().replace(/\/$/, ""))
+        .filter(Boolean),
+    )
+    .refine((origins) => origins.length > 0, "at least one origin is required")
+    .refine(
+      (origins) => origins.every((origin) => URL.canParse(origin)),
+      "every origin must be a full URL, for example http://localhost:3000",
+    ),
   WORKER_QUEUES: z
     .string()
     .default("chat,ingest,cleanup,roadmap,podcast")
@@ -41,6 +58,21 @@ const schema = z.object({
 
   DATABASE_URL: z.string().min(1),
   DATABASE_URL_READONLY: optionalString,
+
+  // Signs session cookies. Required in production; see parseEnv below for why
+  // development is allowed to fall back rather than refuse to boot.
+  BETTER_AUTH_SECRET: optionalString,
+  // Where the auth routes are reachable, which is this API rather than the web
+  // app. OAuth callbacks are built from it, so it has to be the public URL once
+  // this is deployed behind a proxy.
+  BETTER_AUTH_URL: z.url().default("http://localhost:4000"),
+  // Social sign in is optional. A provider whose id and secret are both present
+  // is registered and appears on the sign in page; one left blank does not
+  // exist as far as the client is concerned, so no button is shown for it.
+  GOOGLE_CLIENT_ID: optionalString,
+  GOOGLE_CLIENT_SECRET: optionalString,
+  GITHUB_CLIENT_ID: optionalString,
+  GITHUB_CLIENT_SECRET: optionalString,
 
   REDIS_URL: z.string().min(1),
 
@@ -119,9 +151,36 @@ function parseEnv(): Env {
     process.exit(1);
   }
 
+  if (result.data.NODE_ENV === "production" && !result.data.BETTER_AUTH_SECRET) {
+    process.stderr.write(
+      `\nInvalid environment configuration:\n` +
+        `  BETTER_AUTH_SECRET is required in production.\n` +
+        `  Generate one with: openssl rand -base64 32\n\n`,
+    );
+    process.exit(1);
+  }
+
   return result.data;
 }
 
 export const env = parseEnv();
 
 export const isDevelopment = env.NODE_ENV === "development";
+
+/**
+ * The session signing key.
+ *
+ * Outside production a missing secret falls back to a fixed development value,
+ * because the product ships with `.env.example` blank and has to run before
+ * anyone has generated anything. The fallback is deliberately named for what it
+ * is: sessions signed with it are worthless, which is the point, and production
+ * refuses to start without a real one rather than reaching this line.
+ */
+export const authSecret =
+  env.BETTER_AUTH_SECRET ?? "development-only-insecure-secret-do-not-deploy";
+
+/** A social provider exists only when both halves of its credential are set. */
+export const socialProviders = {
+  google: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
+  github: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
+} as const;

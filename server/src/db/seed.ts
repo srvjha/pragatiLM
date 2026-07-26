@@ -1,7 +1,9 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import { db, closeDb } from "@/db/client";
-import { notebooks, sources } from "@/db/schema";
+import { notebooks, sources, users } from "@/db/schema";
+import { auth } from "@/lib/auth";
 import { putFile } from "@/db/repositories/source-file.repository";
 import { enqueueIngest, closeQueues } from "@/queues";
 import { logger } from "@/lib/logger";
@@ -24,6 +26,27 @@ const demoSources: { type: "PDF" | "TEXT" | "VTT"; file: string; title: string; 
   { type: "TEXT", file: "notes.md", title: "Research notes", mime: "text/plain" },
 ];
 
+const DEMO_EMAIL = "demo@example.com";
+const DEMO_PASSWORD = "demo-password-1";
+
+/** The demo account, created if it is not already there. */
+async function demoUser(): Promise<string> {
+  const [existing] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, DEMO_EMAIL))
+    .limit(1);
+
+  if (existing) return existing.id;
+
+  const created = await auth.api.signUpEmail({
+    body: { name: "Demo", email: DEMO_EMAIL, password: DEMO_PASSWORD },
+  });
+
+  logger.info({ email: DEMO_EMAIL, password: DEMO_PASSWORD }, "demo account created, sign in with");
+  return created.user.id;
+}
+
 async function main(): Promise<void> {
   const existing = await db.select({ id: notebooks.id }).from(notebooks).limit(1);
 
@@ -34,7 +57,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  const [notebook] = await db.insert(notebooks).values({ name: "Demo notebook" }).returning();
+  // The notebook needs an owner, and an owner nobody can sign in as would make
+  // the seeded data unreachable through the UI. Going through Better Auth
+  // rather than inserting a row gives the demo account a real password hash.
+  const userId = await demoUser();
+
+  const [notebook] = await db
+    .insert(notebooks)
+    .values({ userId, name: "Demo notebook" })
+    .returning();
   if (!notebook) throw new Error("Could not create the demo notebook");
 
   let queued = 0;

@@ -7,15 +7,29 @@ import { db } from "@/db/client";
 import { podcasts, podcastAudio } from "@/db/schema";
 import { podcastQueue } from "@/queues";
 import { notFound } from "@/lib/errors";
+import { DEFAULT_VOICE_PAIR, VOICE_PAIRS, VOICE_PAIR_IDS } from "@/providers/tts";
 
 export const podcastRouter: Router = Router({ mergeParams: true });
 
 const createBody = z.object({
+  // Empty means every ready source, which is what the picker sends when
+  // nothing has been unticked.
   sourceIds: z.array(z.uuid()).default([]),
   lengthMinutes: z.union([z.literal(3), z.literal(6), z.literal(10)]).default(3),
+  voicePair: z.enum(VOICE_PAIR_IDS).default(DEFAULT_VOICE_PAIR),
 });
 
 const podcastIdParams = z.object({ notebookId: z.uuid(), podcastId: z.uuid() });
+
+/**
+ * The voice pairings on offer. Served rather than duplicated in the web app, so
+ * the buttons and the values the API validates cannot drift apart.
+ */
+podcastRouter.get("/voice-pairs", (_req, res) => {
+  res.json({
+    data: VOICE_PAIR_IDS.map((id) => ({ id, label: VOICE_PAIRS[id].label })),
+  });
+});
 
 podcastRouter.get("/", (req, res, next) => {
   db.select({
@@ -53,6 +67,7 @@ podcastRouter.post("/", validate({ body: createBody }), (req, res, next) => {
           notebookId,
           sourceIds: body.sourceIds,
           lengthMinutes: body.lengthMinutes,
+          voicePair: body.voicePair,
         },
         { attempts: 1 },
       );

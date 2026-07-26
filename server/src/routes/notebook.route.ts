@@ -2,6 +2,7 @@ import { Router } from "express";
 import * as controller from "@/controllers/notebook.controller";
 import { validate } from "@/middleware/validate";
 import { resolveNotebook } from "@/middleware/ownership";
+import { requireSession } from "@/middleware/session";
 import { sourceRouter } from "@/routes/source.route";
 import { chatRouter } from "@/routes/chat.route";
 import { roadmapRouter } from "@/routes/roadmap.route";
@@ -16,6 +17,11 @@ import {
 } from "@/schemas/notebook.schema";
 
 export const notebookRouter: Router = Router();
+
+// Nothing under this router is reachable without a session. Mounting the guard
+// once here rather than per route means a route added later is protected by
+// default, which is the failure mode worth designing for.
+notebookRouter.use("/notebooks", requireSession);
 
 notebookRouter.get("/notebooks", controller.list);
 notebookRouter.post("/notebooks", validate({ body: createNotebookBody }), controller.create);

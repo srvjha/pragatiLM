@@ -6,6 +6,7 @@ import { runIngestion } from "@/ingestion/pipeline";
 import { ensureCollection } from "@/vector/qdrant.repository";
 import { deleteByNotebook } from "@/vector/chunk.vector-repository";
 import { retrieveOnce, denseSearch, keywordSearch } from "@/services/rag/retrieval";
+import { TEST_USER_ID } from "./setup";
 
 vi.mock("@/queues", () => ({
   enqueueIngest: vi.fn(() => Promise.resolve({ id: "1" })),
@@ -42,8 +43,14 @@ let betaId = "";
 beforeEach(async () => {
   await ensureCollection();
 
-  const [alpha] = await db.insert(notebooks).values({ name: "Alpha" }).returning();
-  const [beta] = await db.insert(notebooks).values({ name: "Beta" }).returning();
+  const [alpha] = await db
+    .insert(notebooks)
+    .values({ name: "Alpha", userId: TEST_USER_ID })
+    .returning();
+  const [beta] = await db
+    .insert(notebooks)
+    .values({ name: "Beta", userId: TEST_USER_ID })
+    .returning();
   alphaId = alpha?.id ?? "";
   betaId = beta?.id ?? "";
 

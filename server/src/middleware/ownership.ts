@@ -1,6 +1,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { findNotebookById } from "@/db/repositories/notebook.repository";
 import { notFound } from "@/lib/errors";
+import { requireUser } from "@/middleware/session";
 import type { Notebook } from "@/db/schema";
 
 declare module "express-serve-static-core" {
@@ -14,6 +15,10 @@ declare module "express-serve-static-core" {
  * nested route below it can assume the notebook exists and belongs where the
  * path says. A child resource that exists under a different notebook is a 404,
  * not a 200, because confirming its existence would leak across the boundary.
+ *
+ * The same reasoning applies one level up: a notebook that exists but belongs
+ * to another user is also a 404 rather than a 403, because a 403 would confirm
+ * the id is real.
  */
 export const resolveNotebook: RequestHandler = (
   req: Request,
@@ -27,9 +32,11 @@ export const resolveNotebook: RequestHandler = (
     return;
   }
 
+  const user = requireUser(req);
+
   findNotebookById(notebookId)
     .then((notebook) => {
-      if (!notebook) {
+      if (!notebook || notebook.userId !== user.id) {
         next(notFound("Notebook not found"));
         return;
       }

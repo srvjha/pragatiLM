@@ -9,7 +9,7 @@ import type { Notebook } from "@/db/schema";
  */
 export type NotebookListItem = Notebook & { sourceCount: number; lastActivityAt: Date };
 
-export async function listNotebooks(): Promise<NotebookListItem[]> {
+export async function listNotebooks(userId: string): Promise<NotebookListItem[]> {
   return db
     .select({
       id: notebooks.id,
@@ -22,6 +22,7 @@ export async function listNotebooks(): Promise<NotebookListItem[]> {
     })
     .from(notebooks)
     .leftJoin(sources, eq(sources.notebookId, notebooks.id))
+    .where(eq(notebooks.userId, userId))
     .groupBy(notebooks.id)
     .orderBy(desc(notebooks.updatedAt));
 }
@@ -31,8 +32,8 @@ export async function findNotebookById(id: string): Promise<Notebook | undefined
   return row;
 }
 
-export async function createNotebook(name: string): Promise<Notebook> {
-  const [row] = await db.insert(notebooks).values({ name }).returning();
+export async function createNotebook(userId: string, name: string): Promise<Notebook> {
+  const [row] = await db.insert(notebooks).values({ userId, name }).returning();
   if (!row) throw new Error("Insert returned no row");
   return row;
 }

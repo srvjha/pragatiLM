@@ -15,8 +15,8 @@ function toDto(row: Notebook): NotebookDto {
   };
 }
 
-export async function listNotebooks(): Promise<NotebookListItemDto[]> {
-  const rows = await repo.listNotebooks();
+export async function listNotebooks(userId: string): Promise<NotebookListItemDto[]> {
+  const rows = await repo.listNotebooks(userId);
 
   return rows.map((row) => ({
     ...toDto(row),
@@ -31,9 +31,11 @@ export async function getNotebook(id: string): Promise<NotebookDto> {
   return toDto(row);
 }
 
-export async function createNotebook(name?: string): Promise<NotebookDto> {
+export async function createNotebook(userId: string, name?: string): Promise<NotebookDto> {
   const trimmed = name?.trim();
-  return toDto(await repo.createNotebook(trimmed && trimmed.length > 0 ? trimmed : DEFAULT_NAME));
+  return toDto(
+    await repo.createNotebook(userId, trimmed && trimmed.length > 0 ? trimmed : DEFAULT_NAME),
+  );
 }
 
 export async function renameNotebook(id: string, name: string): Promise<NotebookDto> {

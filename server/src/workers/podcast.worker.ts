@@ -7,6 +7,7 @@ import { buildScript, saveEpisode, synthesiseEpisode } from "@/services/podcast/
 import { channels, publish } from "@/lib/events";
 import { childLogger } from "@/lib/logger";
 import type { PodcastStage } from "@/db/schema";
+import type { VoicePair } from "@/providers/tts";
 
 const log = childLogger("worker:podcast");
 
@@ -15,10 +16,11 @@ export type PodcastJob = {
   notebookId: string;
   sourceIds: string[];
   lengthMinutes: number;
+  voicePair?: VoicePair;
 };
 
 async function run(job: Job<PodcastJob>): Promise<void> {
-  const { podcastId, notebookId, sourceIds, lengthMinutes } = job.data;
+  const { podcastId, notebookId, sourceIds, lengthMinutes, voicePair } = job.data;
 
   // FR-7.3: the stage the user sees is the stage the job is actually in, not a
   // timed animation.
@@ -47,7 +49,7 @@ async function run(job: Job<PodcastJob>): Promise<void> {
     .set({ title: script.title, script: script.turns, status: "RUNNING" })
     .where(eq(podcasts.id, podcastId));
 
-  const episode = await synthesiseEpisode(script.turns, report);
+  const episode = await synthesiseEpisode(script.turns, report, voicePair);
   await saveEpisode(podcastId, episode.bytes, episode.durationSec);
 
   await publish(channels.source(notebookId), {

@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from "vitest";
-import request from "supertest";
 import { createApp } from "@/app";
 import type { NotebookDto, SourceDto } from "@/types/api";
+import { signedIn } from "./auth-helper";
 
 // The queue client is exercised elsewhere. Here the assertion is that the API
 // enqueues exactly once per created source and returns without waiting.
@@ -36,6 +36,14 @@ vi.mock("@/queues", () => ({
 }));
 
 const app = createApp();
+
+// Every data route needs a session; the reset truncates users, so each test
+// signs up its own account.
+let agent: Awaited<ReturnType<typeof signedIn>>;
+
+beforeEach(async () => {
+  agent = await signedIn(app);
+});
 let notebookId: string;
 
 const PDF_BYTES = Buffer.from("%PDF-1.4\n%fake pdf for upload validation\n%%EOF\n");
@@ -49,7 +57,7 @@ afterAll(() => {
 });
 
 async function newNotebook(): Promise<string> {
-  const response = await request(app).post("/api/notebooks").send({ name: "Sources" });
+  const response = await agent.post("/api/notebooks").send({ name: "Sources" });
   return (response.body as { data: NotebookDto }).data.id;
 }
 
@@ -59,7 +67,7 @@ beforeEach(async () => {
 });
 
 function post(path: string) {
-  return request(app).post(`/api/notebooks/${notebookId}/sources${path}`);
+  return agent.post(`/api/notebooks/${notebookId}/sources${path}`);
 }
 
 describe("POST /sources/pdf", () => {
@@ -125,7 +133,7 @@ describe("POST /sources/pdf", () => {
     await post("/pdf").attach("files", PDF_BYTES, "paper.pdf");
 
     const other = await newNotebook();
-    const response = await request(app)
+    const response = await agent
       .post(`/api/notebooks/${other}/sources/pdf`)
       .attach("files", PDF_BYTES, "paper.pdf");
 
@@ -209,7 +217,7 @@ describe("source management", () => {
 
   it("lists sources for the notebook", async () => {
     await createOne();
-    const response = await request(app).get(`/api/notebooks/${notebookId}/sources`);
+    const response = await agent.get(`/api/notebooks/${notebookId}/sources`);
 
     expect(response.status).toBe(200);
     expect((response.body as { data: SourceDto[] }).data).toHaveLength(1);
@@ -217,7 +225,7 @@ describe("source management", () => {
 
   it("renames a source", async () => {
     const source = await createOne();
-    const response = await request(app)
+    const response = await agent
       .patch(`/api/notebooks/${notebookId}/sources/${source.id}`)
       .send({ title: "Renamed" });
 
@@ -229,7 +237,7 @@ describe("source management", () => {
     const source = await createOne();
     expect(source.selected).toBe(true);
 
-    const response = await request(app)
+    const response = await agent
       .patch(`/api/notebooks/${notebookId}/sources/${source.id}`)
       .send({ selected: false });
 
@@ -240,9 +248,7 @@ describe("source management", () => {
     const source = await createOne();
     enqueued.length = 0;
 
-    const response = await request(app).post(
-      `/api/notebooks/${notebookId}/sources/${source.id}/reindex`,
-    );
+    const response = await agent.post(`/api/notebooks/${notebookId}/sources/${source.id}/reindex`);
 
     expect(response.status).toBe(202);
     expect(enqueued).toEqual([{ name: "reindex-source", sourceId: source.id }]);
@@ -252,12 +258,12 @@ describe("source management", () => {
     const source = await createOne();
     enqueued.length = 0;
 
-    expect(
-      (await request(app).delete(`/api/notebooks/${notebookId}/sources/${source.id}`)).status,
-    ).toBe(204);
+    expect((await agent.delete(`/api/notebooks/${notebookId}/sources/${source.id}`)).status).toBe(
+      204,
+    );
     expect(enqueued).toEqual([{ name: "purge-source", sourceId: source.id }]);
 
-    const list = await request(app).get(`/api/notebooks/${notebookId}/sources`);
+    const list = await agent.get(`/api/notebooks/${notebookId}/sources`);
     expect((list.body as { data: SourceDto[] }).data).toHaveLength(0);
   });
 
@@ -265,17 +271,13 @@ describe("source management", () => {
     const source = await createOne();
     const other = await newNotebook();
 
-    expect((await request(app).get(`/api/notebooks/${other}/sources/${source.id}`)).status).toBe(
-      404,
-    );
+    expect((await agent.get(`/api/notebooks/${other}/sources/${source.id}`)).status).toBe(404);
   });
 
   it("404s a delete attempted from the wrong notebook", async () => {
     const source = await createOne();
     const other = await newNotebook();
 
-    expect((await request(app).delete(`/api/notebooks/${other}/sources/${source.id}`)).status).toBe(
-      404,
-    );
+    expect((await agent.delete(`/api/notebooks/${other}/sources/${source.id}`)).status).toBe(404);
   });
 });

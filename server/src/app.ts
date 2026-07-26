@@ -4,7 +4,9 @@ import helmet from "helmet";
 import compression from "compression";
 import { pinoHttp } from "pino-http";
 import { randomUUID } from "node:crypto";
-import { env, isDevelopment } from "@/config/env";
+import { toNodeHandler } from "better-auth/node";
+import { env, isDevelopment, socialProviders } from "@/config/env";
+import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { healthRouter } from "@/routes/health.route";
 import { notebookRouter } from "@/routes/notebook.route";
@@ -43,6 +45,17 @@ export function createApp(): Express {
       },
     }),
   );
+
+  // Better Auth reads the raw request body itself, so its handler has to be
+  // mounted before the JSON parser consumes the stream. Everything after this
+  // line gets a parsed body; sign in and sign up do not need one.
+  app.all("/api/auth/*splat", toNodeHandler(auth));
+
+  // Which sign in methods actually work, so the web app can render buttons for
+  // the providers that are configured instead of ones that fail on click.
+  app.get("/api/auth-methods", (_req, res) => {
+    res.json({ data: { emailAndPassword: true, ...socialProviders } });
+  });
 
   app.use(express.json({ limit: "1mb" }));
 

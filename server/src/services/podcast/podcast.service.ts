@@ -8,7 +8,7 @@ import ffmpegPath from "ffmpeg-static";
 import { db } from "@/db/client";
 import { chunks, podcasts, podcastAudio, sources } from "@/db/schema";
 import { chatModel, hasLlmCredentials } from "@/providers/llm";
-import { ttsProvider } from "@/providers/tts";
+import { DEFAULT_VOICE_PAIR, ttsProvider, type VoicePair } from "@/providers/tts";
 import type { PodcastTurn } from "@/types/domain";
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
@@ -116,6 +116,7 @@ export type ProgressReporter = (stage: string, progress: number) => Promise<void
 export async function synthesiseEpisode(
   turns: PodcastTurn[],
   report: ProgressReporter,
+  voicePair: VoicePair = DEFAULT_VOICE_PAIR,
 ): Promise<{ bytes: Buffer; durationSec: number }> {
   const tts = ttsProvider();
   const directory = await mkdtemp(join(tmpdir(), "notebook-podcast-"));
@@ -129,7 +130,11 @@ export async function synthesiseEpisode(
         20 + Math.round((index / turns.length) * 60),
       );
 
-      const audio = await tts.synthesise(turn.text, turn.host === "A" ? "female" : "male");
+      const audio = await tts.synthesise(
+        turn.text,
+        turn.host === "A" ? "female" : "male",
+        voicePair,
+      );
       const file = join(directory, `turn-${String(index).padStart(3, "0")}.mp3`);
       await writeFile(file, audio);
       files.push(file);

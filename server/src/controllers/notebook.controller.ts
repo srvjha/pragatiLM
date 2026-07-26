@@ -1,15 +1,16 @@
 import type { Request, RequestHandler, Response, NextFunction } from "express";
 import * as service from "@/services/notebook.service";
 import { requireNotebook } from "@/middleware/ownership";
+import { requireUser } from "@/middleware/session";
 import type { CreateNotebookBody, UpdateNotebookBody } from "@/schemas/notebook.schema";
 
 /**
  * Controllers orchestrate and shape the response. They hold no logic and touch
  * no storage, which is the layering every later feature copies.
  */
-export const list: RequestHandler = (_req, res: Response, next: NextFunction) => {
+export const list: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
   service
-    .listNotebooks()
+    .listNotebooks(requireUser(req).id)
     .then((data) => res.json({ data }))
     .catch(next);
 };
@@ -29,7 +30,7 @@ export const get: RequestHandler = (req: Request, res: Response) => {
 export const create: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
   const body = req.body as CreateNotebookBody;
   service
-    .createNotebook(body.name)
+    .createNotebook(requireUser(req).id, body.name)
     .then((data) => res.status(201).json({ data }))
     .catch(next);
 };

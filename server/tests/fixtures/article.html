@@ -1,18 +1,36 @@
 <!doctype html>
-<html><head><title>Sharding strategies for growing datasets</title></head>
-<body>
-  <nav><a href="/">Home</a><a href="/blog">Blog</a></nav>
-  <header><span>Site header that is not article content</span></header>
-  <article>
-    <h1>Sharding strategies for growing datasets</h1>
-    <p>Sharding splits a dataset across several machines so that no single node has to hold all of it. The choice of partition key decides almost everything else about the system.</p>
-    <h2>Hash partitioning</h2>
-    <p>Hashing the key spreads rows evenly and is simple to reason about. The cost is that range scans have to touch every shard, because adjacent keys land in unrelated places.</p>
-    <p>Adding a node reshuffles a large fraction of the data unless consistent hashing is used.</p>
-    <h2>Range partitioning</h2>
-    <p>Range partitioning keeps adjacent keys together, which makes scans cheap and hotspots likely. A monotonically increasing key sends every write to one shard.</p>
-    <h3>Rebalancing</h3>
-    <p>Splitting a hot range into two is the usual remedy, and it is why range partitioned stores keep a directory of range boundaries.</p>
-  </article>
-  <footer><p>Footer text that should not be extracted</p></footer>
-</body></html>
+<html>
+  <head>
+    <title>Sharding strategies for growing datasets</title>
+  </head>
+  <body>
+    <nav><a href="/">Home</a><a href="/blog">Blog</a></nav>
+    <header><span>Site header that is not article content</span></header>
+    <article>
+      <h1>Sharding strategies for growing datasets</h1>
+      <p>
+        Sharding splits a dataset across several machines so that no single node has to hold all of
+        it. The choice of partition key decides almost everything else about the system.
+      </p>
+      <h2>Hash partitioning</h2>
+      <p>
+        Hashing the key spreads rows evenly and is simple to reason about. The cost is that range
+        scans have to touch every shard, because adjacent keys land in unrelated places.
+      </p>
+      <p>
+        Adding a node reshuffles a large fraction of the data unless consistent hashing is used.
+      </p>
+      <h2>Range partitioning</h2>
+      <p>
+        Range partitioning keeps adjacent keys together, which makes scans cheap and hotspots
+        likely. A monotonically increasing key sends every write to one shard.
+      </p>
+      <h3>Rebalancing</h3>
+      <p>
+        Splitting a hot range into two is the usual remedy, and it is why range partitioned stores
+        keep a directory of range boundaries.
+      </p>
+    </article>
+    <footer><p>Footer text that should not be extracted</p></footer>
+  </body>
+</html>
