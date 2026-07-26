@@ -39,7 +39,22 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * A failed OAuth round trip comes back here with ?error=oauth rather than
+   * stopping on an API error page, so the person sees why they are still on
+   * the sign in screen.
+   *
+   * Read once as the initial value rather than synced in an effect: the query
+   * string is fixed for the life of this mount, so there is nothing to keep in
+   * sync, and useSearchParams would force the whole page out of static
+   * rendering for one string.
+   */
+  const [error, setError] = useState<string | null>(() =>
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("error") === "oauth"
+      ? "That sign in did not complete. Try again, or use your email and password."
+      : null,
+  );
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(event: React.FormEvent) {
@@ -74,6 +89,28 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
   const hasSocial = methods?.google || methods?.github;
 
+  /**
+   * Starts an OAuth round trip.
+   *
+   * Both callback URLs are absolute, and that is the whole point. Better Auth
+   * resolves a relative path against its own baseURL, which is the API, so
+   * "/app" sends the browser to the API's /app and lands on a JSON 404 after an
+   * otherwise successful sign in. The web app's own origin is what we want, and
+   * the browser is the thing that knows it.
+   *
+   * The origin has to be listed in the server's WEB_ORIGIN for Better Auth to
+   * accept it, which is the same check that stops an open redirect.
+   */
+  function social(provider: "google" | "github") {
+    return signIn.social({
+      provider,
+      callbackURL: `${window.location.origin}/app`,
+      // Without this, a refused or cancelled sign in lands on an API error page
+      // rather than back here with something to read.
+      errorCallbackURL: `${window.location.origin}/sign-in?error=oauth`,
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div className="space-y-1.5">
@@ -89,12 +126,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
                 variant="outline"
                 size="lg"
                 type="button"
-                onClick={() =>
-                  void signIn.social({
-                    provider: "google",
-                    callbackURL: "/app",
-                  })
-                }
+                onClick={() => void social("google")}
               >
                 <GoogleIcon className="size-4" />
                 Continue with Google
@@ -105,12 +137,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
                 variant="outline"
                 size="lg"
                 type="button"
-                onClick={() =>
-                  void signIn.social({
-                    provider: "github",
-                    callbackURL: "/app",
-                  })
-                }
+                onClick={() => void social("github")}
               >
                 <GitHubIcon className="size-4" />
                 Continue with GitHub
