@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Wordmark } from "@/components/brand/wordmark";
 import { useSession } from "@/lib/auth-client";
+import { AccountMenu } from "@/components/auth/account-menu";
 
 /**
  * The marketing header. It knows whether you are signed in, because offering
@@ -32,11 +33,14 @@ export function SiteHeader() {
 
         <div className="ml-auto flex items-center gap-2 sm:ml-6">
           {!isPending && session && (
-            <Button
-              size="sm"
-              nativeButton={false}
-              render={<Link href="/app">Open your notebooks</Link>}
-            />
+            <>
+              <Button
+                size="sm"
+                nativeButton={false}
+                render={<Link href="/app">Open your notebooks</Link>}
+              />
+              <AccountMenu />
+            </>
           )}
 
           {!isPending && !session && (
