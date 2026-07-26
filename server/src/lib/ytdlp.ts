@@ -25,9 +25,6 @@ const log = childLogger("ytdlp");
 
 const TIMEOUT_MS = 60_000;
 
-/** Preferred first, then whatever the video has. */
-const LANGUAGE_PREFERENCE = "en.*,en,-live_chat";
-
 let available: boolean | null = null;
 
 function binary(): string {
@@ -63,53 +60,127 @@ export type YtCue = { text: string; startSec: number; endSec: number };
  * yields the same sentence three or four times. The SRT conversion collapses
  * that to one cue per line, which is what the chunker wants.
  */
-export async function fetchYoutubeCaptions(url: string): Promise<YtCue[]> {
+export async function fetchYoutubeCaptions(url: string, languages: string[]): Promise<YtCue[]> {
   const directory = await mkdtemp(join(tmpdir(), "notebook-yt-"));
 
   try {
-    await run(
-      binary(),
-      [
-        "--write-subs",
-        "--write-auto-subs",
-        "--sub-langs",
-        LANGUAGE_PREFERENCE,
-        "--skip-download",
-        "--convert-subs",
-        "srt",
-        "--no-playlist",
-        "--no-warnings",
-        "-o",
-        join(directory, "cap"),
-        url,
-      ],
-      { timeout: TIMEOUT_MS },
-    );
+    for (const language of orderLanguages(languages)) {
+      try {
+        await run(
+          binary(),
+          [
+            "--write-subs",
+            "--write-auto-subs",
+            "--sub-langs",
+            language,
+            "--skip-download",
+            "--convert-subs",
+            "srt",
+            "--no-playlist",
+            "--no-warnings",
+            "-o",
+            join(directory, `cap-${language}`),
+            url,
+          ],
+          { timeout: TIMEOUT_MS },
+        );
+      } catch (error) {
+        // One language at a time, deliberately. Passing several at once means a
+        // single failure aborts the run and the rest are never tried.
+        log.debug({ err: error, language }, "no captions in this language");
+        continue;
+      }
 
-    const files = (await readdir(directory)).filter((name) => name.endsWith(".srt"));
-    // Prefer an English track when the video carries several.
-    const chosen = files.find((name) => /\.en([.-]|$)/i.test(name)) ?? files[0];
+      const cues = await readCues(directory);
+      if (cues.length > 0) {
+        log.info({ language, cues: cues.length }, "captions fetched");
+        return cues;
+      }
+    }
 
-    if (!chosen) return [];
-
-    const raw = (await readFile(join(directory, chosen), "utf8")).replace(/^\uFEFF/, "");
-
-    return parseSync(raw)
-      .filter((node) => node.type === "cue")
-      .map((node) => {
-        const cue = node.data as { start: number; end: number; text: string };
-        return {
-          // Auto captions still arrive with the occasional markup tag.
-          text: cue.text
-            .replace(/<[^>]+>/g, "")
-            .replace(/\s+/g, " ")
-            .trim(),
-          startSec: cue.start / 1000,
-          endSec: cue.end / 1000,
-        };
-      })
-      .filter((cue) => cue.text.length > 0);
+    return [];
   } finally {
     await rm(directory, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+/**
+ * English first, then the languages the video actually has.
+ *
+ * Asking for a language a video does not carry is not a harmless miss: yt-dlp
+ * treats it as a request to auto translate, and YouTube answers that with 429.
+ * Hardcoding "en" therefore turned every non English video into a rate limit
+ * error, while the track it did have sat there downloadable. A video captioned
+ * only in Hindi is worth indexing in Hindi.
+ */
+function orderLanguages(languages: string[]): string[] {
+  const available = languages.filter(Boolean);
+  const english = available.filter((code) => /^en\b|^en-/i.test(code));
+  const rest = available.filter((code) => !english.includes(code));
+
+  const ordered = [...new Set([...english, ...rest])].slice(0, 6);
+
+  // "en" is only a guess for when the caller could not name anything at all.
+  return ordered.length > 0 ? ordered : ["en"];
+}
+
+/** The first SRT written into the working directory, as cues. */
+async function readCues(directory: string): Promise<YtCue[]> {
+  const files = (await readdir(directory)).filter((name) => name.endsWith(".srt"));
+  const chosen = files[0];
+  if (!chosen) return [];
+
+  const raw = (await readFile(join(directory, chosen), "utf8")).replace(/^\uFEFF/, "");
+
+  const cues = parseSync(raw)
+    .filter((node) => node.type === "cue")
+    .map((node) => {
+      const cue = node.data as { start: number; end: number; text: string };
+      return {
+        // Auto captions still arrive with the occasional markup tag.
+        text: cue.text
+          .replace(/<[^>]+>/g, "")
+          .replace(/\s+/g, " ")
+          .trim(),
+        startSec: cue.start / 1000,
+        endSec: cue.end / 1000,
+      };
+    })
+    .filter((cue) => cue.text.length > 0);
+
+  return collapseRolling(cues);
+}
+
+/**
+ * Collapses rolling auto captions.
+ *
+ * YouTube's automatic captions scroll: each cue repeats the line before it with
+ * a few more words appended, so a two minute clip arrives as hundreds of cues
+ * that are mostly the same sentence growing. Indexed as they are, one sentence
+ * occupies a dozen chunks and crowds everything else out of the results.
+ *
+ * A cue is dropped when the next one already contains it, and the survivor
+ * keeps the earlier start time so the citation still points at where the
+ * sentence began rather than where it finished.
+ */
+function collapseRolling(cues: YtCue[]): YtCue[] {
+  const kept: YtCue[] = [];
+
+  for (const cue of cues) {
+    const previous = kept[kept.length - 1];
+
+    if (previous && cue.text.startsWith(previous.text)) {
+      kept[kept.length - 1] = { ...cue, startSec: previous.startSec };
+      continue;
+    }
+
+    if (previous && previous.text === cue.text) {
+      previous.endSec = Math.max(previous.endSec, cue.endSec);
+      continue;
+    }
+
+    kept.push(cue);
+  }
+
+  return kept;
 }

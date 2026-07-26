@@ -102,7 +102,7 @@ export const liveYoutubeClient: YoutubeClient = {
     // yt-dlp next, which is the route that also carries timings.
     if (await hasYtDlp()) {
       try {
-        const cues = await fetchYoutubeCaptions(url);
+        const cues = await fetchYoutubeCaptions(url, languages);
         if (cues.length > 0) return { title, ...extras, cues };
         log.warn({ videoId }, "yt-dlp returned no cues, falling back");
       } catch (error) {
