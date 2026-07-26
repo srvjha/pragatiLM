@@ -173,3 +173,31 @@ export type HealthReport = {
   uptimeSec: number;
   services: Record<"postgres" | "redis" | "qdrant", ServiceHealth>;
 };
+
+/** Everything the analytics dashboard renders, scoped to one user. */
+export type AnalyticsDto = {
+  notebooks: number;
+  sources: {
+    total: number;
+    ready: number;
+    failed: number;
+    byType: { type: string; count: number; ready: number }[];
+  };
+  index: { chunks: number; tokens: number; storedBytes: number };
+  answers: {
+    questions: number;
+    answered: number;
+    refused: number;
+    withCitations: number;
+    citationCoverage: number | null;
+    refusalRate: number | null;
+  };
+  retrieval: {
+    runs: number;
+    medianCorrectionRounds: number;
+    averageContextGrade: number;
+    medianLatencyMs: number;
+  };
+  artifacts: { roadmaps: number; podcasts: number };
+  activity: { day: string; sources: number; questions: number }[];
+};

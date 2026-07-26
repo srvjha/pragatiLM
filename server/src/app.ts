@@ -10,6 +10,7 @@ import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { healthRouter } from "@/routes/health.route";
 import { notebookRouter } from "@/routes/notebook.route";
+import { analyticsRouter } from "@/routes/analytics.route";
 import { errorHandler, notFoundHandler } from "@/middleware/error";
 import { createAdminRouter } from "@/routes/admin.route";
 
@@ -65,6 +66,7 @@ export function createApp(): Express {
   }
 
   app.use("/api", healthRouter);
+  app.use("/api", analyticsRouter);
   app.use("/api", notebookRouter);
 
   app.use(notFoundHandler);

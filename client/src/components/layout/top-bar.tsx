@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { ChevronDown, LogOut, Menu, Moon, Search, Sun } from "lucide-react";
+import {
+  BarChart3,
+  ChevronDown,
+  LogOut,
+  Menu,
+  Moon,
+  Search,
+  Sun,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Wordmark } from "@/components/brand/wordmark";
 import {
@@ -122,6 +130,10 @@ export function TopBar({ notebookId }: { notebookId?: string }) {
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push("/app")}>
               All notebooks
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/app/dashboard")}>
+              <BarChart3 className="size-3.5" />
+              Dashboard
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => void signOut()}>
