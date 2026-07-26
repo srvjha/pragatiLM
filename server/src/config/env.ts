@@ -104,6 +104,11 @@ const schema = z.object({
 
   REDIS_URL: requiredString,
 
+  // Optional path to a yt-dlp binary. YouTube stopped serving captions to
+  // third parties, so this is the only route to them; without it, YouTube
+  // sources fail with an explanation and VTT upload still works.
+  YTDLP_PATH: optionalString,
+
   QDRANT_URL: z.url(),
   QDRANT_API_KEY: optionalString,
   QDRANT_COLLECTION: requiredString.default("chunks"),

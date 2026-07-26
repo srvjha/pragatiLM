@@ -1,6 +1,8 @@
 import { Innertube } from "youtubei.js";
 import { sha256 } from "hash-wasm";
 import { parseYoutubeUrl } from "@/lib/youtube";
+import { fetchYoutubeCaptions, hasYtDlp } from "@/lib/ytdlp";
+import { childLogger } from "@/lib/logger";
 import {
   ExtractionError,
   type Extractor,
@@ -28,10 +30,18 @@ export type YoutubeClient = {
   fetchPlaylist: (playlistId: string) => Promise<{ title: string; videoIds: string[] }>;
 };
 
+const log = childLogger("youtube");
+
 let innertube: Promise<Innertube> | null = null;
 
 function client(): Promise<Innertube> {
-  innertube ??= Innertube.create({ retrieve_player: false });
+  // The player must be retrieved. Skipping it is faster and returns an info
+  // object whose caption_tracks array is simply empty, which made every video
+  // look like it had no captions at all: this one reports three tracks with the
+  // player and zero without. The diagnosis below depends on knowing the
+  // difference between a video with no captions and one whose captions YouTube
+  // will not hand over.
+  innertube ??= Innertube.create();
   return innertube;
 }
 
@@ -59,6 +69,25 @@ export const liveYoutubeClient: YoutubeClient = {
       );
     }
 
+    const title = info.basic_info.title ?? `YouTube video ${videoId}`;
+    const extras = {
+      ...(info.basic_info.author ? { author: info.basic_info.author } : {}),
+      ...(info.basic_info.duration ? { durationSec: info.basic_info.duration } : {}),
+    };
+
+    // yt-dlp first when it is installed. YouTube's own transcript API answers
+    // 400 for everything now, so trying it first would only add a doomed round
+    // trip to the common path.
+    if (await hasYtDlp()) {
+      try {
+        const cues = await fetchYoutubeCaptions(`https://www.youtube.com/watch?v=${videoId}`);
+        if (cues.length > 0) return { title, ...extras, cues };
+        log.warn({ videoId }, "yt-dlp returned no cues, falling back");
+      } catch (error) {
+        log.warn({ err: error, videoId }, "yt-dlp failed, falling back");
+      }
+    }
+
     let transcript;
     try {
       transcript = await info.getTranscript();
@@ -72,11 +101,15 @@ export const liveYoutubeClient: YoutubeClient = {
         .slice(0, 3)
         .join(", ");
 
+      const installed = await hasYtDlp();
+
       throw new ExtractionError(
         `YouTube would not release the captions for this video${
           languages ? ` (it has: ${languages})` : ""
         }. This is a restriction on their side, not a setting on the video. ` +
-          "Download the transcript yourself and add it here as a VTT or SRT source.",
+          (installed
+            ? "Fetching them another way also failed, which usually means YouTube is rate limiting this machine. Wait a few minutes and press Retry, or add the transcript as a VTT or SRT source."
+            : "Installing yt-dlp on the server lets this work automatically. Until then, download the transcript yourself and add it here as a VTT or SRT source."),
       );
     }
 
@@ -96,12 +129,7 @@ export const liveYoutubeClient: YoutubeClient = {
       );
     }
 
-    return {
-      title: info.basic_info.title ?? `YouTube video ${videoId}`,
-      ...(info.basic_info.author ? { author: info.basic_info.author } : {}),
-      ...(info.basic_info.duration ? { durationSec: info.basic_info.duration } : {}),
-      cues,
-    };
+    return { title, ...extras, cues };
   },
 
   async fetchPlaylist(playlistId: string): Promise<{ title: string; videoIds: string[] }> {

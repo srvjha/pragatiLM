@@ -272,6 +272,28 @@ compared. Mixing them does not error, it just quietly returns nonsense.
     text-embedding-3-large   ->  EMBEDDING_DIM=3072
 
 
+2.4b  YOUTUBE CAPTIONS
+-------------------------------------------------------------------------------
+
+YouTube no longer serves caption tracks to third parties. The timedtext
+endpoint returns HTTP 200 with an empty body, and the transcript API answers
+400. This is true of every video: a TED talk with 41 hand written caption
+tracks returns nothing, exactly like a video with none. No library gets around
+it, because it is not a library problem.
+
+    brew install yt-dlp
+
+yt-dlp does get through, and tracking these changes is the reason it exists.
+Point YTDLP_PATH at the binary, or leave it blank to use PATH.
+
+Without it, YouTube sources fail with an explanation and every other source
+type is unaffected. Uploading the transcript as VTT or SRT always works.
+
+One gotcha: YouTube rate limits by IP. Adding many videos in quick succession
+earns HTTP 429 for a while, and the fix is to wait rather than to retry
+harder.
+
+
 2.5  THE TWO URLS THAT TRIP PEOPLE UP
 -------------------------------------------------------------------------------
 
