@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ const copy = {
 
 export function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter();
+  const params = useSearchParams();
   const { data: methods } = useAuthMethods();
   const text = copy[mode];
 
@@ -40,20 +41,18 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   /**
-   * A failed OAuth round trip comes back here with ?error=oauth rather than
-   * stopping on an API error page, so the person sees why they are still on
-   * the sign in screen.
+   * A failed OAuth round trip comes back here with the reason in the query
+   * string, so the person sees why they are still on the sign in screen.
    *
-   * Read once as the initial value rather than synced in an effect: the query
-   * string is fixed for the life of this mount, so there is nothing to keep in
-   * sync, and useSearchParams would force the whole page out of static
-   * rendering for one string.
+   * Read as the initial state rather than synced in an effect: the query string
+   * is fixed for the life of this mount, so there is nothing to keep in sync.
+   * Reading it off `window` instead would render one thing on the server and
+   * another on the client, which is a hydration mismatch; useSearchParams is
+   * the API that handles that, and the Suspense boundary the page puts around
+   * this component is what it needs to do so.
    */
   const [error, setError] = useState<string | null>(() =>
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("error") === "oauth"
-      ? "That sign in did not complete. Try again, or use your email and password."
-      : null,
+    oauthError(params.get("error")),
   );
   const [busy, setBusy] = useState(false);
 
@@ -225,6 +224,24 @@ export function AuthForm({ mode }: { mode: Mode }) {
       </p>
     </div>
   );
+}
+
+/**
+ * A sign in that failed somewhere in the OAuth round trip comes back here with
+ * the reason in the query string. state_mismatch is the one worth naming: it
+ * almost always means the attempt was left too long, since the state cookie
+ * lives five minutes, or that an older tab was completed after a newer attempt
+ * replaced it. "Something went wrong" would send someone hunting a
+ * configuration problem that is not there.
+ */
+function oauthError(code: string | null): string | null {
+  if (!code) return null;
+
+  if (code === "state_mismatch") {
+    return "That sign in took too long, or it was started in another tab. Please try again.";
+  }
+
+  return "That sign in did not complete. Try again, or use your email and password.";
 }
 
 function Field({

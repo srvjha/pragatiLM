@@ -58,6 +58,18 @@ export const auth = betterAuth({
   // so its origin has to be trusted for both CORS and OAuth redirects.
   trustedOrigins: env.WEB_ORIGIN,
 
+  onAPIError: {
+    // The per request errorCallbackURL cannot cover every case, because it
+    // travels inside the OAuth state: when the failure IS the state, there is
+    // nothing left to read it from. state_mismatch therefore fell through to
+    // Better Auth's own error page on the API, which is a dead end on a
+    // different origin from the app.
+    //
+    // The first trusted origin is the web app, so failures land back on its
+    // sign in form with the reason in the query string.
+    errorURL: `${env.WEB_ORIGIN[0]}/sign-in`,
+  },
+
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 10,
