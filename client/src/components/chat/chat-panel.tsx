@@ -9,18 +9,22 @@ import {
   Loader2,
   RotateCw,
   Square,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { AnswerMarkdown } from "./markdown";
 import { PhaseIndicator } from "./phase-indicator";
 import { CitationChips } from "./citation-chips";
+import { ClearChatDialog } from "./clear-chat-dialog";
 import * as api from "@/features/chat/api";
 import { useChatStream } from "@/features/chat/use-chat-stream";
 import { useSources } from "@/features/sources/hooks";
 import { queryKeys } from "@/lib/query-keys";
 import { isQueryable } from "@/lib/source-status";
 import { useUiStore } from "@/stores/ui-store";
+import { ApiError } from "@/lib/api-client";
+import { toast } from "sonner";
 import type { CitationDto, MessageDto } from "@/types/api";
 
 export function ChatPanel({ notebookId }: { notebookId: string }) {
@@ -65,6 +69,32 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
   const { state, send, stop, reset } = useChatStream(notebookId, onFinished);
   const [draft, setDraft] = useState("");
   const [lastAsked, setLastAsked] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  /**
+   * Clearing deletes the chat rather than its messages one by one. The effect
+   * above creates a chat whenever the notebook has none, so a fresh empty one
+   * takes its place on the next refetch and the person can carry straight on.
+   */
+  const clear = useMutation({
+    mutationFn: () => api.deleteChat(notebookId, chatId ?? ""),
+    onSuccess: async () => {
+      reset();
+      setDraft("");
+      setLastAsked("");
+      await client.invalidateQueries({
+        queryKey: queryKeys.chats.list(notebookId),
+      });
+      await client.invalidateQueries({
+        queryKey: queryKeys.chats.messages(chatId ?? "none"),
+      });
+      toast.success("Chat cleared");
+    },
+    onError: (error) =>
+      toast.error(
+        error instanceof ApiError ? error.message : "Could not clear the chat",
+      ),
+  });
 
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
@@ -116,6 +146,33 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Only once there is something to clear. An empty transcript with a
+          "Clear chat" button offers a destructive action for no reason. */}
+      {persisted.length > 0 && (
+        <div className="flex shrink-0 items-center justify-end border-b px-3 py-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground gap-1.5"
+            disabled={state.streaming || clear.isPending}
+            onClick={() => setConfirmClear(true)}
+          >
+            <Trash2 className="size-3.5" />
+            Clear chat
+          </Button>
+        </div>
+      )}
+
+      <ClearChatDialog
+        open={confirmClear}
+        messageCount={persisted.length}
+        onOpenChange={setConfirmClear}
+        onConfirm={() => {
+          setConfirmClear(false);
+          clear.mutate();
+        }}
+      />
+
       <div
         ref={scroller}
         onScroll={onScroll}

@@ -36,3 +36,16 @@ export function stopGeneration(
     },
   );
 }
+
+/**
+ * Clears the transcript by deleting the chat itself.
+ *
+ * The panel creates a chat whenever the notebook has none, so removing it is
+ * the whole operation: the messages and their citations cascade in the
+ * database, and a fresh empty chat appears on the next refetch.
+ */
+export function deleteChat(notebookId: string, chatId: string): Promise<void> {
+  return apiFetch<void>(`/notebooks/${notebookId}/chats/${chatId}`, {
+    method: "DELETE",
+  });
+}
