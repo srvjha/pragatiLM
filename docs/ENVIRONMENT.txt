@@ -1,0 +1,591 @@
+===============================================================================
+NOTEBOOK RAG - ENVIRONMENT SETUP GUIDE
+===============================================================================
+
+Covers both projects, local development and production.
+
+  server/   Express API + BullMQ workers.  Reads server/.env
+  client/   Next.js web app.               Reads client/.env.local
+
+The two projects are independent. Neither imports from the other, and neither
+reads the other's env file.
+
+The server parses its whole environment once at boot through zod
+(server/src/config/env.ts). A missing or malformed value stops startup with a
+message naming the variable, rather than failing later at the first request.
+
+-------------------------------------------------------------------------------
+CONTENTS
+-------------------------------------------------------------------------------
+
+  PART 1   LOCAL DEVELOPMENT
+  PART 2   PRODUCTION - MANAGED SERVICES, NO DOCKER
+  PART 3   FULL VARIABLE REFERENCE
+  PART 4   TROUBLESHOOTING
+
+
+===============================================================================
+PART 1 - LOCAL DEVELOPMENT
+===============================================================================
+
+STEP 1.  Start the infrastructure
+-------------------------------------------------------------------------------
+
+    cd server
+    docker compose up -d
+
+This gives you three containers:
+
+    Postgres 16      localhost:5432    user postgres / password postgres
+    Redis 7          localhost:6379
+    Qdrant 1.18.3    localhost:6333
+
+Check they are healthy before continuing:
+
+    docker compose ps
+
+
+STEP 2.  Create server/.env
+-------------------------------------------------------------------------------
+
+    cd server
+    cp .env.example .env
+
+The defaults in .env.example already match the docker compose services, so the
+only thing you have to fill in is OPENAI_API_KEY.
+
+Minimum edit to get real answers:
+
+    OPENAI_API_KEY=sk-proj-...your key...
+
+Everything else can stay as shipped.
+
+If you want to run with NO key at all, set this instead and leave the key blank:
+
+    EMBEDDING_PROVIDER=fake
+
+Ingestion, the UI, source status and the viewer all work. Retrieval returns
+meaningless results, because the vectors carry no semantics. It is a way to
+click through the product, not to evaluate it.
+
+
+STEP 3.  Generate the auth secret
+-------------------------------------------------------------------------------
+
+    openssl rand -base64 32
+
+Paste the output into server/.env:
+
+    BETTER_AUTH_SECRET=<the generated value>
+
+This is NOT a third party credential. You generate it yourself. It signs the
+session cookies.
+
+Leaving it blank is fine locally: development falls back to a fixed insecure
+value so the product runs before you have generated anything. Production
+refuses to start without it.
+
+
+STEP 4.  Apply the database migrations
+-------------------------------------------------------------------------------
+
+    cd server
+    npm install
+    npm run db:migrate
+
+This creates all 15 tables, the generated tsvector column with its GIN index,
+and the notebook_ro read only role used by the SQL retrieval route.
+
+
+STEP 5.  Optional - seed a demo notebook
+-------------------------------------------------------------------------------
+
+    npm run db:seed
+
+Creates a demo account and a notebook with three sources queued for ingestion.
+The credentials are printed in the log:
+
+    email     demo@example.com
+    password  demo-password-1
+
+
+STEP 6.  Create client/.env.local
+-------------------------------------------------------------------------------
+
+    cd client
+    cp .env.example .env.local
+
+One variable, and the default is already correct for local development:
+
+    NEXT_PUBLIC_API_URL=http://localhost:4000
+
+This is the ONLY variable the web app has. It is public by design: it is
+compiled into the browser bundle, which is why it carries the NEXT_PUBLIC_
+prefix. Never put a secret in this file. The web app holds no credentials at
+all - it talks to the API and the API holds everything.
+
+
+STEP 7.  Run it
+-------------------------------------------------------------------------------
+
+Three terminals:
+
+    cd server && npm run dev           # API on :4000
+    cd server && npm run dev:worker    # queue workers
+    cd client && npm run dev           # web app on :3000
+
+The API and the worker are separate processes on purpose. The API only ever
+enqueues; all ingestion, chat answering, roadmap and podcast work happens in
+the worker. Without the worker running, sources stay stuck at "Uploading" and
+questions never get answered.
+
+Open http://localhost:3000 and create an account.
+
+
+NOTE ON PORTS
+-------------------------------------------------------------------------------
+
+If port 3000 is taken, Next.js moves to 3001 and the API rejects it as an
+unknown origin. WEB_ORIGIN accepts a comma separated list, which is why the
+example ships with both:
+
+    WEB_ORIGIN=http://localhost:3000,http://localhost:3001
+
+
+===============================================================================
+PART 2 - PRODUCTION WITH MANAGED SERVICES (NO DOCKER)
+===============================================================================
+
+You are replacing the three compose services with hosted ones. Here is what
+each becomes and exactly which variable takes the URL.
+
+
+2.1  WHAT YOU NEED TO PROVISION
+-------------------------------------------------------------------------------
+
+    Postgres 16+     Neon, Supabase, RDS, Railway, Render - any of them
+    Redis            Upstash, Redis Cloud, ElastiCache, Railway
+    Qdrant           Qdrant Cloud, or self hosted on a VM
+    OpenAI key       required for real answers
+    Cohere key       optional, improves reranking
+
+Postgres must be version 13 or newer. The schema uses gen_random_uuid(), which
+is built in from 13 onward and needs no extension. Nothing else is required -
+no pgvector, no pg_trgm. Full text search uses the built in tsvector type.
+
+
+2.2  POSTGRES
+-------------------------------------------------------------------------------
+
+Take the connection string your provider gives you:
+
+    DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME?sslmode=require
+
+Most managed providers require TLS. If your provider hands you a URL without
+sslmode, append it:
+
+    ?sslmode=require
+
+Then run the migrations against it, once, from your machine or a deploy step:
+
+    cd server
+    DATABASE_URL="postgresql://..." npm run db:migrate
+
+
+THE READ ONLY ROLE - read this, it needs a decision
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Migration 0001 creates a role called notebook_ro. It exists so the SQL
+retrieval route (questions like "how many videos have I added") runs generated
+SQL under a login that physically cannot write and can only see three things:
+the notebooks table, the sources table, and an aggregate view. Read only is
+enforced by Postgres, not by inspecting the generated statement.
+
+The migration runs CREATE ROLE, which needs privileges your managed database
+may not give you.
+
+    Neon           works, the default role has CREATEROLE
+    Supabase       works as the postgres role
+    RDS            works as the rds_superuser
+    Some others    CREATE ROLE is refused
+
+If the migration fails on CREATE ROLE, you have two options.
+
+  OPTION A - provision the role by hand, then rerun the migration.
+  Connect as an admin and run:
+
+      CREATE ROLE notebook_ro LOGIN PASSWORD 'a-strong-password-here';
+
+  The migration's DO block skips creation when the role already exists, so the
+  rest of it (the grants and the timeout) applies cleanly on the next run.
+
+  Then set:
+
+      DATABASE_URL_READONLY=postgresql://notebook_ro:PASSWORD@HOST:5432/DBNAME?sslmode=require
+
+  OPTION B - turn the SQL route off and leave the variable blank:
+
+      SQL_ROUTE_ENABLED=false
+      DATABASE_URL_READONLY=
+
+  You lose the ability to answer questions about the collection itself
+  ("which source is longest", "what did I add last week"). Vector and keyword
+  retrieval are unaffected, so ordinary questions about source content still
+  work normally.
+
+Do NOT point DATABASE_URL_READONLY at your main credentials to make the error
+go away. That hands a generated SQL statement full write access to your
+database, which is the exact thing the role exists to prevent.
+
+
+2.3  REDIS
+-------------------------------------------------------------------------------
+
+    REDIS_URL=rediss://default:PASSWORD@HOST:6379
+
+Note "rediss" with two s for a TLS connection, which most hosted Redis
+requires. Upstash and Redis Cloud both give you this URL directly.
+
+Redis carries the BullMQ queues and the chat stream pub/sub. It is not a
+cache you can drop - without it, nothing is processed.
+
+If you use Upstash, prefer their standard Redis endpoint rather than the REST
+API. BullMQ needs a real Redis connection.
+
+
+2.4  QDRANT
+-------------------------------------------------------------------------------
+
+    QDRANT_URL=https://YOUR-CLUSTER.qdrant.io:6333
+    QDRANT_API_KEY=your-cluster-api-key
+    QDRANT_COLLECTION=chunks
+
+The collection is created automatically on first use with the right vector
+size and payload indexes. You do not need to create it by hand.
+
+The vector size comes from EMBEDDING_DIM and must match your embedding model.
+If you ever change the model, you must change EMBEDDING_DIM to match AND
+re-index every source, because vectors from two different models cannot be
+compared. Mixing them does not error, it just quietly returns nonsense.
+
+    text-embedding-3-small   ->  EMBEDDING_DIM=1536
+    text-embedding-3-large   ->  EMBEDDING_DIM=3072
+
+
+2.5  THE TWO URLS THAT TRIP PEOPLE UP
+-------------------------------------------------------------------------------
+
+These are the ones that cause "it works locally but not deployed".
+
+    WEB_ORIGIN         where the WEB APP is        https://yourdomain.com
+    BETTER_AUTH_URL    where the API is            https://api.yourdomain.com
+
+They are different values. WEB_ORIGIN is the browser's origin and is used for
+CORS and for trusted OAuth redirects. BETTER_AUTH_URL is this API's own public
+address and is what OAuth callback URLs are built from.
+
+WEB_ORIGIN takes a comma separated list, so a preview deployment alongside
+production is fine:
+
+    WEB_ORIGIN=https://yourdomain.com,https://staging.yourdomain.com
+
+No trailing slashes. They are stripped, but do not rely on it.
+
+
+2.6  THE SESSION COOKIE - MOST IMPORTANT PART OF THIS DOCUMENT
+-------------------------------------------------------------------------------
+
+The session lives in a cookie set by the API. Whether the browser sends that
+cookie back depends on the DOMAINS, not the ports and not the URLs.
+
+  THIS WORKS with the default settings:
+
+      web app   https://yourdomain.com
+      API       https://api.yourdomain.com
+
+  Both are the same site (yourdomain.com), so the cookie is sent.
+
+  THIS DOES NOT WORK with the default settings:
+
+      web app   https://myapp.vercel.app
+      API       https://myapi.railway.app
+
+  Two different sites. The browser will accept the cookie on sign in and then
+  refuse to send it on every subsequent request. The symptom is nasty: sign in
+  appears to succeed, then the app immediately behaves as if you are signed
+  out, and every API call returns 401.
+
+  If your deployment looks like the second case, set:
+
+      AUTH_COOKIE_CROSS_SITE=true
+
+  This switches the cookie to SameSite=None and forces Secure on. Both sides
+  must be HTTPS. Browsers reject a SameSite=None cookie over plain HTTP.
+
+The better fix, if you can, is the first arrangement: put the API on a
+subdomain of the same domain as the web app. Cross site cookies are blocked
+outright by some browser privacy settings, so a same site setup is more
+robust than a correct cross site one.
+
+
+2.7  PROCESSES TO RUN
+-------------------------------------------------------------------------------
+
+You need at least TWO processes in production, not one:
+
+    npm run start           the API      (dist/index.js)
+    npm run start:worker    the workers  (dist/worker.js)
+
+Build first with `npm run build`.
+
+The worker can be split across machines using WORKER_QUEUES. Each process
+consumes only the queues it is told to:
+
+    WORKER_QUEUES=chat                          a chat-only worker
+    WORKER_QUEUES=ingest,cleanup                an ingestion worker
+    WORKER_QUEUES=chat,ingest,cleanup,roadmap,podcast    everything (default)
+
+Podcast generation runs ffmpeg and is memory hungry. If you split anything,
+split that off first.
+
+Do NOT set WORKER_QUEUES on the API process. The API only enqueues.
+
+
+2.8  A COMPLETE PRODUCTION server/.env
+-------------------------------------------------------------------------------
+
+    NODE_ENV=production
+    API_PORT=4000
+    WEB_ORIGIN=https://yourdomain.com
+
+    DATABASE_URL=postgresql://user:pass@host:5432/notebook_rag?sslmode=require
+    DATABASE_URL_READONLY=postgresql://notebook_ro:pass@host:5432/notebook_rag?sslmode=require
+
+    BETTER_AUTH_SECRET=<openssl rand -base64 32>
+    BETTER_AUTH_URL=https://api.yourdomain.com
+    AUTH_COOKIE_CROSS_SITE=false
+
+    GOOGLE_CLIENT_ID=
+    GOOGLE_CLIENT_SECRET=
+    GITHUB_CLIENT_ID=
+    GITHUB_CLIENT_SECRET=
+
+    REDIS_URL=rediss://default:pass@host:6379
+
+    QDRANT_URL=https://your-cluster.qdrant.io:6333
+    QDRANT_API_KEY=your-qdrant-key
+    QDRANT_COLLECTION=chunks
+
+    EMBEDDING_PROVIDER=openai
+    OPENAI_API_KEY=sk-proj-...
+    COHERE_API_KEY=
+
+And the whole of the production client environment:
+
+    NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+
+Everything not listed keeps its default. You do not need to copy the tuning
+variables into production unless you are changing them.
+
+
+2.9  DEPLOYMENT CHECKLIST
+-------------------------------------------------------------------------------
+
+    [ ] Migrations applied against the production DATABASE_URL
+    [ ] BETTER_AUTH_SECRET set (production will not boot without it)
+    [ ] BETTER_AUTH_URL is the API's public URL, not the web app's
+    [ ] WEB_ORIGIN is the web app's public URL, not the API's
+    [ ] AUTH_COOKIE_CROSS_SITE decided (see 2.6)
+    [ ] Both processes running: API and worker
+    [ ] NEXT_PUBLIC_API_URL set at CLIENT BUILD TIME, not just at runtime
+    [ ] GET https://api.yourdomain.com/api/health returns ok
+    [ ] OAuth redirect URIs registered if you are using social sign in
+
+The NEXT_PUBLIC_ one catches people. Next.js inlines it into the bundle during
+the build, so setting it only as a runtime variable leaves the deployed app
+pointing at whatever it was built with.
+
+
+===============================================================================
+PART 3 - FULL VARIABLE REFERENCE (server/.env)
+===============================================================================
+
+REQUIRED - the server will not start without these
+-------------------------------------------------------------------------------
+
+  DATABASE_URL              Postgres connection string
+  REDIS_URL                 Redis connection string
+  QDRANT_URL                Qdrant base URL
+  WEB_ORIGIN                Web app origin(s), comma separated
+  BETTER_AUTH_SECRET        Required in production only
+
+
+CORE
+-------------------------------------------------------------------------------
+
+  NODE_ENV                  development | test | production   (development)
+  API_PORT                  4000
+  WORKER_QUEUES             chat,ingest,cleanup,roadmap,podcast
+  CHAT_QUEUE_CONCURRENCY    8
+
+
+AUTHENTICATION
+-------------------------------------------------------------------------------
+
+  BETTER_AUTH_SECRET        You generate it: openssl rand -base64 32
+  BETTER_AUTH_URL           This API's public URL   (http://localhost:4000)
+  AUTH_COOKIE_CROSS_SITE    false. See section 2.6 before changing
+  GOOGLE_CLIENT_ID          Optional. Both halves needed or no button shows
+  GOOGLE_CLIENT_SECRET        console.cloud.google.com/apis/credentials
+                              redirect: {BETTER_AUTH_URL}/api/auth/callback/google
+  GITHUB_CLIENT_ID          Optional
+  GITHUB_CLIENT_SECRET        github.com/settings/developers
+                              callback: {BETTER_AUTH_URL}/api/auth/callback/github
+
+Email and password sign in is always enabled and needs no credential.
+Password reset is not implemented - there is no mail transport configured.
+
+
+STORAGE
+-------------------------------------------------------------------------------
+
+  DATABASE_URL              Main connection, read and write
+  DATABASE_URL_READONLY     notebook_ro role, for the SQL route only.
+                            Blank disables that route. See section 2.2
+  QDRANT_API_KEY            Blank for local, required for Qdrant Cloud
+  QDRANT_COLLECTION         chunks
+
+There is no object storage. Uploaded files and generated podcast audio are
+stored as bytea in Postgres. Size your database accordingly: MAX_UPLOAD_MB
+defaults to 50 MB per file.
+
+
+MODELS
+-------------------------------------------------------------------------------
+
+  EMBEDDING_PROVIDER        openai | fake                (openai)
+  OPENAI_API_KEY            Needed for embeddings, answers, and TTS
+  EMBEDDING_MODEL           text-embedding-3-small
+  EMBEDDING_DIM             1536  - must match the model
+  CHAT_MODEL                gpt-4.1-mini    writes the answer
+  QUERY_MODEL               gpt-4.1-nano    query translation and routing
+  GRADER_MODEL              gpt-4.1-nano    context and answer grading
+  COHERE_API_KEY            Optional. Cross encoder reranking.
+                            Blank falls back to MMR. dashboard.cohere.com
+  RERANK_ENABLED            true
+
+Two small models are used deliberately. Translation, routing and grading run
+on a nano model because they happen on every question and their latency is
+paid by the reader; only the answer itself uses the larger model.
+
+
+TEXT TO SPEECH (podcast only)
+-------------------------------------------------------------------------------
+
+  TTS_PROVIDER              openai | elevenlabs          (openai)
+  TTS_VOICE_FEMALE          nova     - host A, the "warm" pairing
+  TTS_VOICE_MALE            onyx     - host B, the "warm" pairing
+  ELEVENLABS_API_KEY        Only read when TTS_PROVIDER=elevenlabs
+
+The other voice pairings offered in the UI are fixed in code. These two
+variables define the default pairing.
+
+
+CHUNKING
+-------------------------------------------------------------------------------
+
+  CHUNK_TARGET_TOKENS       900
+  CHUNK_OVERLAP_TOKENS      150   must be smaller than the target
+
+Changing either requires re-indexing every source to take effect.
+
+
+RETRIEVAL - every stage has a switch
+-------------------------------------------------------------------------------
+
+  QUERY_TRANSLATION_ENABLED  true   master switch for all of the below
+  REWRITE_ENABLED            true   standalone rewrite
+  STEPBACK_ENABLED           true   broader step back question
+  SUBQUESTIONS_ENABLED       true   split a compound question
+  SUBQUESTION_MAX            3
+  HYDE_ENABLED               true   hypothetical answer searched as a document
+
+  QUERY_ROUTING_ENABLED      true
+  SQL_ROUTE_ENABLED          true   needs DATABASE_URL_READONLY
+  SQL_MAX_ROWS               50
+  SQL_TIMEOUT_MS             2000
+
+  RRF_K                      60     reciprocal rank fusion constant
+  RETRIEVAL_TOP_K            30     candidates carried into reranking
+  RERANK_TOP_N               8      passages given to the model
+  RELEVANCE_FLOOR            0.25   below this, the system refuses to answer
+
+  CRAG_ENABLED               true   the corrective loop
+  CRAG_MIN_SCORE             6      out of 10, below which retrieval retries
+  CRAG_MAX_RETRIES           3
+  CRAG_WALL_CLOCK_MS         15000
+
+Turn everything off and the product degrades to plain hybrid retrieval and
+still answers. That is deliberate: it is what makes each stage's contribution
+measurable rather than assumed.
+
+To measure it rather than guess, run:
+
+    npm run eval
+
+It runs a labelled question set with each configuration and prints hit rate
+and MRR per stage. It needs a real OPENAI_API_KEY and refuses to run on fake
+embeddings.
+
+
+UPLOADS
+-------------------------------------------------------------------------------
+
+  MAX_UPLOAD_MB             50
+
+
+===============================================================================
+PART 4 - TROUBLESHOOTING
+===============================================================================
+
+"Invalid environment configuration" at startup
+    The message names the variable and what is wrong with it. A blank value is
+    treated as unset, not as invalid, so an empty optional key is fine.
+
+Sign in works, then everything is 401
+    The cookie is not coming back. See section 2.6. This is almost always the
+    web app and the API being on different registrable domains with
+    AUTH_COOKIE_CROSS_SITE left at false.
+
+CORS error naming an origin that is not in the header
+    WEB_ORIGIN does not list the origin the browser is actually using. Add it,
+    comma separated. Watch for http vs https and for a trailing slash.
+
+Sources stay grey at "Uploading" forever
+    The worker process is not running, or WORKER_QUEUES on it does not include
+    "ingest". The API only enqueues.
+
+Questions never get answered, no error
+    Same cause, for the "chat" queue.
+
+Answers come back irrelevant or nonsensical
+    EMBEDDING_PROVIDER is still set to "fake". The vectors carry no meaning.
+
+"This PDF has no extractable text layer"
+    Correct behaviour, not a bug. The file is a scan. There is no OCR.
+
+Migration fails on CREATE ROLE
+    See section 2.2, options A and B.
+
+Retrieval returns nothing after changing the embedding model
+    Vectors from two models are not comparable. Update EMBEDDING_DIM to match
+    and re-index every source.
+
+Production refuses to start, complaining about BETTER_AUTH_SECRET
+    Working as intended. Generate one with: openssl rand -base64 32
+
+Health check
+    GET /api/health reports Postgres, Redis and Qdrant individually, so you
+    can see which dependency is the problem rather than guessing.
+
+===============================================================================

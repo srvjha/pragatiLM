@@ -85,18 +85,26 @@ export const auth = betterAuth({
       // Auth's default text.
       generateId: () => randomUUID(),
     },
-    // The API and the web app share the `localhost` host in development, so a
-    // lax cookie is delivered on cross port requests. A deployment that splits
-    // them across domains needs `sameSite: "none"` with `secure: true`.
+    // SameSite is about the registrable domain, not the origin. In development
+    // the API and the web app are both on `localhost`, and in a deployment
+    // where they are `api.example.com` and `example.com` they are still one
+    // site, so a lax cookie is sent on the app's fetch calls in both cases.
     //
-    // `secure` keys on production rather than on "not development", because the
-    // test environment is neither: it drives the app over plain http, and a
-    // secure cookie there is silently dropped, which reads as every
-    // authenticated route being broken.
+    // Put them on genuinely different domains, which is what happens when the
+    // web app is on one host's subdomain and the API on another's, and lax
+    // stops being sent on anything except top level navigation. Every request
+    // then arrives without a session and the whole app reads as signed out
+    // while sign in itself appears to succeed. AUTH_COOKIE_CROSS_SITE exists
+    // for exactly that deployment; it requires HTTPS on both sides, which is
+    // why it forces `secure` on regardless of NODE_ENV.
+    //
+    // `secure` otherwise keys on production rather than on "not development",
+    // because the test environment is neither: it drives the app over plain
+    // http, where a secure cookie is silently dropped.
     defaultCookieAttributes: {
       httpOnly: true,
-      sameSite: "lax",
-      secure: env.NODE_ENV === "production",
+      sameSite: env.AUTH_COOKIE_CROSS_SITE ? "none" : "lax",
+      secure: env.AUTH_COOKIE_CROSS_SITE || env.NODE_ENV === "production",
     },
   },
 });

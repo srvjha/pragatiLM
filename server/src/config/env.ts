@@ -73,6 +73,11 @@ const schema = z.object({
   GOOGLE_CLIENT_SECRET: optionalString,
   GITHUB_CLIENT_ID: optionalString,
   GITHUB_CLIENT_SECRET: optionalString,
+  // Set this only when the web app and the API sit on different registrable
+  // domains, for example a web app on one hosting provider's subdomain and the
+  // API on another's. It switches the session cookie to SameSite=None, which
+  // browsers only accept over HTTPS, so it forces Secure on with it.
+  AUTH_COOKIE_CROSS_SITE: booleanish.default(false),
 
   REDIS_URL: z.string().min(1),
 
