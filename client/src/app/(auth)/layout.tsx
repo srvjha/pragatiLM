@@ -17,7 +17,12 @@ export default function AuthLayout({
       </header>
 
       <main className="flex flex-1 items-start justify-center px-6 pt-8 pb-20 sm:items-center sm:pt-0">
-        <div className="w-full max-w-sm">{children}</div>
+        {/* The card is what stops a short form reading as an unfinished page on
+            a wide screen. It lifts off the paper ground rather than tinting it,
+            which is the same rule every other surface follows. */}
+        <div className="bg-card w-full max-w-sm rounded-lg border p-6 shadow-sm sm:p-8">
+          {children}
+        </div>
       </main>
     </div>
   );
