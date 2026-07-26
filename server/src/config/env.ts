@@ -123,7 +123,13 @@ const schema = z.object({
   EMBEDDING_DIM: positiveInt.default(1536),
   CHAT_MODEL: z.string().default("gpt-4.1-mini"),
   QUERY_MODEL: z.string().default("gpt-4.1-nano"),
-  GRADER_MODEL: z.string().default("gpt-4.1-nano"),
+  // The grader gates every answer, so it is the one small-model saving that
+  // does not pay. On a Hindi transcript written in Devanagari, nano scored
+  // passages that plainly answered the question at 2 out of 10 and the product
+  // refused; the same passages and the same prompt score 9 and 10 on mini. A
+  // false refusal costs the reader the whole answer, which is worth far more
+  // than the fraction of a cent saved per question.
+  GRADER_MODEL: z.string().default("gpt-4.1-mini"),
   COHERE_API_KEY: optionalString,
   RERANK_ENABLED: booleanish.default(true),
 

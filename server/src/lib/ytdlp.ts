@@ -154,14 +154,17 @@ async function readCues(directory: string): Promise<YtCue[]> {
 /**
  * Collapses rolling auto captions.
  *
- * YouTube's automatic captions scroll: each cue repeats the line before it with
- * a few more words appended, so a two minute clip arrives as hundreds of cues
- * that are mostly the same sentence growing. Indexed as they are, one sentence
- * occupies a dozen chunks and crowds everything else out of the results.
+ * YouTube's automatic captions scroll, and they do not scroll a whole line at
+ * a time: each cue begins partway through the one before it and adds a few
+ * words. So the tail of one cue is the head of the next, and a naive check for
+ * "does this cue start with the previous one" catches almost none of it. The
+ * transcript arrives with every phrase written two or three times, and indexed
+ * that way one sentence fills several chunks and crowds the real results out.
  *
- * A cue is dropped when the next one already contains it, and the survivor
- * keeps the earlier start time so the citation still points at where the
- * sentence began rather than where it finished.
+ * Each cue therefore keeps only the words the previous one did not already
+ * end with. Overlap is matched on whole words, never mid word, and a cue left
+ * with nothing new is dropped after extending the previous cue's end time so
+ * no speech falls outside a range.
  */
 function collapseRolling(cues: YtCue[]): YtCue[] {
   const kept: YtCue[] = [];
@@ -169,18 +172,36 @@ function collapseRolling(cues: YtCue[]): YtCue[] {
   for (const cue of cues) {
     const previous = kept[kept.length - 1];
 
-    if (previous && cue.text.startsWith(previous.text)) {
-      kept[kept.length - 1] = { ...cue, startSec: previous.startSec };
+    if (!previous) {
+      kept.push({ ...cue });
       continue;
     }
 
-    if (previous && previous.text === cue.text) {
+    const fresh = withoutOverlap(previous.text, cue.text);
+
+    if (fresh.length === 0) {
       previous.endSec = Math.max(previous.endSec, cue.endSec);
       continue;
     }
 
-    kept.push(cue);
+    kept.push({ ...cue, text: fresh });
   }
 
   return kept;
+}
+
+/** `next` with any leading run of words that already ends `previous` removed. */
+function withoutOverlap(previous: string, next: string): string {
+  const tail = previous.split(" ").filter(Boolean);
+  const head = next.split(" ").filter(Boolean);
+  const limit = Math.min(tail.length, head.length);
+
+  // Longest overlap first, so "a b c" against "b c d" drops two words, not one.
+  for (let size = limit; size > 0; size -= 1) {
+    if (tail.slice(-size).join(" ") === head.slice(0, size).join(" ")) {
+      return head.slice(size).join(" ");
+    }
+  }
+
+  return next;
 }
