@@ -39,7 +39,7 @@ log.info(
 );
 
 export const auth = betterAuth({
-  appName: "Notebook RAG",
+  appName: "doChatLM",
   secret: authSecret,
   baseURL: env.BETTER_AUTH_URL,
   basePath: "/api/auth",

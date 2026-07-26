@@ -1,5 +1,5 @@
 ===============================================================================
-NOTEBOOK RAG - ENVIRONMENT SETUP GUIDE
+doChatLM - ENVIRONMENT SETUP GUIDE
 ===============================================================================
 
 Covers both projects, local development and production.

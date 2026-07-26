@@ -1,4 +1,4 @@
-# Notebook RAG
+# doChatLM
 
 An AI research assistant. Create a notebook, add sources to it (PDF, text, web page, YouTube video, VTT transcript), and ask questions answered **only** from those sources. Every answer carries citations, and clicking one opens the original at the exact page, timestamp or character range the answer came from.
 

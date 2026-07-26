@@ -1,4 +1,4 @@
-# Notebook RAG, client
+# doChatLM, client
 
 The frontend: Next.js 16, App Router, TypeScript, Tailwind CSS v4, shadcn/ui on Base UI. This project is self contained and holds no database, queue or model credentials. Every model call and every storage access happens on the server.
 

@@ -35,8 +35,8 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Notebook RAG",
-    template: "%s · Notebook RAG",
+    default: "doChatLM",
+    template: "%s · doChatLM",
   },
   description:
     "Ask questions answered only from your own sources, with a citation on every claim, and a plain refusal when the answer is not in them.",

@@ -26,7 +26,7 @@ export default function Landing() {
               Retrieval you can check
             </p>
             <h1 className="text-4xl leading-[1.05] font-semibold text-balance sm:text-6xl">
-              Nothing it cannot cite.
+              Ask your documents. See where every answer came from.
             </h1>
             <p className="text-muted-foreground mx-auto mt-6 max-w-2xl font-serif text-lg leading-relaxed text-pretty">
               Add your PDFs, lectures, transcripts and links. Every sentence of
