@@ -34,6 +34,14 @@ type UiState = {
   toggleSwitcher: () => void;
   setViewerOpen: (open: boolean) => void;
   setViewerSource: (sourceId: string | null) => void;
+  /**
+   * Returns the right column to the source list without closing it.
+   *
+   * Distinct from closeViewer: on a wide screen the column is always there,
+   * and going back from an open source means showing the list again, not
+   * collapsing the whole panel.
+   */
+  showSourceList: () => void;
   setViewerCitation: (
     citation: {
       sourceId: string | null;
@@ -80,6 +88,10 @@ export const useUiStore = create<UiState>((set) => ({
       viewerSnippet: null,
       viewerOpen: viewerSourceId !== null,
     }),
+
+  /** Back to the list, keeping the column itself open. */
+  showSourceList: () =>
+    set({ viewerSourceId: null, viewerLocator: null, viewerSnippet: null }),
 
   /** Opening from a citation: additionally carry where to land and highlight. */
   setViewerCitation: (citation) =>

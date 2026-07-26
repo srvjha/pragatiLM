@@ -113,7 +113,10 @@ describe("corrective loop", () => {
 
     expect(result.bestGrade.score).toBe(5);
     expect(result.best.reranked[0]?.chunkId).toBe("round1-best");
-    expect(result.belowFloor).toBe(true);
+    // 5 is short of the retry bar but well above the refusal bar: the answer is
+    // written from what was found, rather than withheld because it could have
+    // been better.
+    expect(result.belowFloor).toBe(false);
   });
 
   it("stops early when the grader offers nothing to search for", async () => {
@@ -125,11 +128,33 @@ describe("corrective loop", () => {
       reason: "not enough",
     });
 
-    // Another identical round would only cost time.
+    // Another identical round would only cost time. The set is still answered
+    // from: 4 is below the retry bar, not below the refusal bar.
     expect((await retrieveWithCorrection({ notebookId: "n", question: "q" })).belowFloor).toBe(
-      true,
+      false,
     );
     expect(retrieveOnce).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses only when the grade is very low, not merely imperfect", async () => {
+    retrieveOnce.mockResolvedValue(resultWith(["a"]));
+    gradeContext.mockResolvedValue(grade(1));
+
+    const result = await retrieveWithCorrection({ notebookId: "n", question: "q" });
+
+    // 1 out of 10 means the passages are about something else entirely, which
+    // is the case refusing exists for.
+    expect(result.belowFloor).toBe(true);
+  });
+
+  it("refuses when nothing was retrieved at all", async () => {
+    retrieveOnce.mockResolvedValue(resultWith([]));
+    gradeContext.mockResolvedValue(grade(8));
+
+    const result = await retrieveWithCorrection({ notebookId: "n", question: "q" });
+
+    // An empty set cannot support an answer whatever a grader claims about it.
+    expect(result.belowFloor).toBe(true);
   });
 
   it("reports each round as it is graded, and announces a correction", async () => {

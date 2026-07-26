@@ -147,7 +147,17 @@ const schema = z.object({
   RELEVANCE_FLOOR: z.coerce.number().min(0).max(1).default(0.25),
 
   CRAG_ENABLED: booleanish.default(true),
+  // Two different decisions, and they were the same number, which is why a
+  // notebook whose first page answered the question refused it.
+  //
+  // CRAG_MIN_SCORE is "search again": below it the loop widens the search,
+  // and 6 out of 10 is a sensible bar for "could be better".
+  //
+  // CRAG_REFUSE_BELOW is "say nothing at all", which is a far graver act and
+  // needs a far lower bar. A set scoring 5 is partially sufficient; answering
+  // from it and citing what it does support beats refusing outright.
   CRAG_MIN_SCORE: z.coerce.number().min(0).max(10).default(6),
+  CRAG_REFUSE_BELOW: z.coerce.number().min(0).max(10).default(3),
   CRAG_MAX_RETRIES: nonNegativeInt.default(3),
   CRAG_WALL_CLOCK_MS: positiveInt.default(15000),
 

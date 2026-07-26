@@ -39,6 +39,13 @@ export function buildPoints(
         chunkIndex: chunk.chunkIndex,
         locator: chunk.locator,
         text: chunk.text,
+        // FR-3.6. Which space this vector lives in. Retrieval filters on it, so
+        // vectors written by a different embedding model are invisible rather
+        // than silently compared against the current one. Cosine distance
+        // between two unrelated spaces is not an error, it is noise, and noise
+        // that outranks the real passages is how a notebook that plainly
+        // answers a question ends up refusing it.
+        embeddingModel: chunk.embeddingModel,
       },
     };
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,25 @@ export function PdfView({
 
   const [pageCount, setPageCount] = useState(0);
   const [page, setPage] = useState(citedPage);
-  const [scale, setScale] = useState(1);
+  // Zoom is a multiplier on "fit the column", not an absolute scale. A PDF page
+  // is around 816px wide at 100%, and this column is often half that, so an
+  // absolute scale of 1 renders a page that runs off both edges with no
+  // horizontal scrollbar to recover it.
+  const [zoom, setZoom] = useState(1);
+  const [fitWidth, setFitWidth] = useState(0);
+  const surface = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = surface.current;
+    if (!element) return;
+
+    const measure = () => setFitWidth(Math.max(200, element.clientWidth - 24));
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const [failed, setFailed] = useState(false);
   const [marked, setMarked] = useState<Set<number>>(new Set());
 
@@ -145,7 +163,7 @@ export function PdfView({
           size="icon"
           className="size-7"
           aria-label="Zoom out"
-          onClick={() => setScale((current) => Math.max(0.5, current - 0.25))}
+          onClick={() => setZoom((current) => Math.max(0.5, current - 0.25))}
         >
           <ZoomOut className="size-4" />
         </Button>
@@ -154,7 +172,7 @@ export function PdfView({
           size="icon"
           className="size-7"
           aria-label="Zoom in"
-          onClick={() => setScale((current) => Math.min(2.5, current + 0.25))}
+          onClick={() => setZoom((current) => Math.min(3, current + 0.25))}
         >
           <ZoomIn className="size-4" />
         </Button>
@@ -166,7 +184,10 @@ export function PdfView({
         )}
       </div>
 
-      <div className="bg-muted/40 min-h-0 flex-1 overflow-auto p-3">
+      <div
+        ref={surface}
+        className="bg-muted/40 min-h-0 flex-1 overflow-auto p-3"
+      >
         <Document
           file={file}
           onLoadSuccess={(document) => setPageCount(document.numPages)}
@@ -178,16 +199,21 @@ export function PdfView({
           }
           className="flex justify-center"
         >
-          <Page
-            key={`${page}-${marked.size}`}
-            pageNumber={page}
-            scale={scale}
-            renderTextLayer
-            renderAnnotationLayer={false}
-            onGetTextSuccess={onGetTextSuccess}
-            customTextRenderer={customTextRenderer}
-            className="shadow"
-          />
+          {/* Nothing is rendered until the column has been measured: a Page
+              given width 0 lays out its text layer against a zero width and the
+              highlights land in the wrong place. */}
+          {fitWidth > 0 && (
+            <Page
+              key={`${page}-${marked.size}`}
+              pageNumber={page}
+              width={Math.round(fitWidth * zoom)}
+              renderTextLayer
+              renderAnnotationLayer={false}
+              onGetTextSuccess={onGetTextSuccess}
+              customTextRenderer={customTextRenderer}
+              className="shadow"
+            />
+          )}
         </Document>
       </div>
     </div>

@@ -51,7 +51,22 @@ export async function chunkProse(blocks: Block[], options: ChunkOptions): Promis
     const wouldBreakLocator =
       previous !== undefined && !canShareChunk(previous.locator, piece.locator);
 
-    if (wouldExceed || wouldBreakLocator) flush();
+    if (wouldExceed || wouldBreakLocator) {
+      flush();
+
+      // The overlap must not cross the boundary that just forced the flush.
+      //
+      // Carrying the tail of page 1 into the chunk for page 2 puts page 1's
+      // words inside a chunk whose locator says page 2, which is precisely the
+      // lie canShareChunk exists to prevent; the page rule stopped the blocks
+      // merging and the carry walked the text across anyway. On a document with
+      // short pages the carry is the whole previous page, so the citation
+      // quotes one page while opening another.
+      //
+      // Overlap only buys reading continuity, and there is none across a page
+      // break, so dropping it costs nothing worth keeping.
+      if (wouldBreakLocator) carry = "";
+    }
 
     current.push(piece);
     currentTokens += countTokens(piece.text);

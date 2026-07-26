@@ -1,29 +1,44 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
+import { AudioLines, Map, MessageSquare, PanelRight, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { useState } from "react";
-import { AudioLines, Map, MessageSquare } from "lucide-react";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { RoadmapPanel } from "@/components/artifacts/roadmap-panel";
 import { PodcastPanel } from "@/components/artifacts/podcast-panel";
-import { cn } from "@/lib/utils";
 import { SourceViewer } from "@/components/viewer/source-viewer";
+import { SourceList } from "@/components/sources/source-list";
 import { PanelErrorBoundary } from "@/components/layout/error-boundary";
+import { Button } from "@/components/ui/button";
+import { useSources } from "@/features/sources/hooks";
+import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 import { useMediaQuery } from "@/lib/use-media-query";
 
 type Tab = "chat" | "roadmap" | "podcast";
 
+/**
+ * Three columns: notebooks, the conversation, and the material.
+ *
+ * The right column holds the source list, and becomes the open source when a
+ * citation is clicked. One column with one job, rather than the list on the
+ * left and the viewer on the right fighting over the same content. It also
+ * puts the reading direction to work: the claim is on the left and the
+ * evidence it rests on opens to its right.
+ *
+ * FR-8.1: below 1280px there is not room for three, so the right column
+ * becomes an overlay reached from the Sources button.
+ */
 export function NotebookWorkspace({ notebookId }: { notebookId: string }) {
   const [tab, setTab] = useState<Tab>("chat");
   const setActiveNotebook = useUiStore((state) => state.setActiveNotebook);
   const viewerOpen = useUiStore((state) => state.viewerOpen);
+  const setViewerOpen = useUiStore((state) => state.setViewerOpen);
+  const viewerSourceId = useUiStore((state) => state.viewerSourceId);
   const closeViewer = useUiStore((state) => state.closeViewer);
 
-  // FR-8.1: a split pane has room at 1280px and up; below that the viewer
-  // becomes an overlay so the chat keeps the full width.
+  const { data: sources } = useSources(notebookId);
   const canSplit = useMediaQuery("(min-width: 1280px)");
 
   // The URL is the source of truth for which notebook is open; the store mirrors
@@ -39,6 +54,17 @@ export function NotebookWorkspace({ notebookId }: { notebookId: string }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [closeViewer]);
+
+  /** The right column: the open source if there is one, otherwise the list. */
+  const material = (
+    <PanelErrorBoundary label="sources">
+      {viewerSourceId ? (
+        <SourceViewer notebookId={notebookId} />
+      ) : (
+        <SourceList notebookId={notebookId} />
+      )}
+    </PanelErrorBoundary>
+  );
 
   const main = (
     <div className="flex h-full flex-col">
@@ -66,6 +92,26 @@ export function NotebookWorkspace({ notebookId }: { notebookId: string }) {
             {option.label}
           </button>
         ))}
+
+        {/* Below the split breakpoint the right column is hidden, so it needs a
+            way in. The count is here because it is the one thing about the
+            sources worth knowing without opening them. */}
+        {!canSplit && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto gap-1.5"
+            onClick={() => setViewerOpen(true)}
+          >
+            <PanelRight className="size-3.5" />
+            Sources
+            {sources && sources.length > 0 && (
+              <span className="text-muted-foreground font-mono text-[10px]">
+                {sources.length}
+              </span>
+            )}
+          </Button>
+        )}
       </div>
 
       <div className="min-h-0 flex-1">
@@ -78,40 +124,53 @@ export function NotebookWorkspace({ notebookId }: { notebookId: string }) {
     </div>
   );
 
-  return (
-    <AppShell notebookId={notebookId}>
-      {viewerOpen && canSplit ? (
+  if (canSplit) {
+    return (
+      <AppShell notebookId={notebookId}>
         <Group orientation="horizontal" className="h-full">
-          <Panel id="chat" minSize={30}>
+          {/* Strings are percentages in react-resizable-panels v4; a bare
+              number means pixels, which collapses the column to a sliver. */}
+          <Panel id="chat" minSize="35">
             {main}
           </Panel>
           <Separator className="bg-border hover:bg-foreground/20 w-1 transition-colors" />
-          <Panel id="viewer" minSize={25}>
-            <PanelErrorBoundary label="source viewer">
-              <SourceViewer notebookId={notebookId} />
-            </PanelErrorBoundary>
+          <Panel id="material" defaultSize="32" minSize="20">
+            {material}
           </Panel>
         </Group>
-      ) : (
-        <div className="relative h-full">
-          {main}
+      </AppShell>
+    );
+  }
 
-          {viewerOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40 bg-black/40"
-                onClick={closeViewer}
-                aria-hidden
-              />
-              <aside className="bg-background fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l shadow-xl">
-                <PanelErrorBoundary label="source viewer">
-                  <SourceViewer notebookId={notebookId} />
-                </PanelErrorBoundary>
-              </aside>
-            </>
-          )}
-        </div>
-      )}
+  return (
+    <AppShell notebookId={notebookId}>
+      <div className="relative h-full">
+        {main}
+
+        {viewerOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/40"
+              onClick={closeViewer}
+              aria-hidden
+            />
+            <aside className="bg-background fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l shadow-xl">
+              <div className="flex shrink-0 items-center justify-end border-b px-2 py-1.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label="Close sources"
+                  onClick={closeViewer}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+              <div className="min-h-0 flex-1">{material}</div>
+            </aside>
+          </>
+        )}
+      </div>
     </AppShell>
   );
 }

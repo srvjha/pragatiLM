@@ -18,12 +18,14 @@ export type ChunkPayload = {
   chunkIndex: number;
   locator: Locator;
   text: string;
+  /** The embedding model that produced this vector. Filtered on at query time. */
+  embeddingModel: string;
 };
 
 // Filtered on for every single retrieval call, so they are indexed rather than
 // scanned. notebookId is the isolation boundary; sourceId scopes to the user's
 // current selection.
-const INDEXED_PAYLOAD_FIELDS = ["notebookId", "sourceId"] as const;
+const INDEXED_PAYLOAD_FIELDS = ["notebookId", "sourceId", "embeddingModel"] as const;
 
 /**
  * Creates the collection and its payload indexes if they are missing. Safe to

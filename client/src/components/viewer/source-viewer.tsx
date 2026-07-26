@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Download, ExternalLink, X } from "lucide-react";
+import { ChevronLeft, Download, ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -25,7 +25,7 @@ export function SourceViewer({ notebookId }: { notebookId: string }) {
   const sourceId = useUiStore((state) => state.viewerSourceId);
   const locator = useUiStore((state) => state.viewerLocator);
   const snippet = useUiStore((state) => state.viewerSnippet);
-  const closeViewer = useUiStore((state) => state.closeViewer);
+  const showSourceList = useUiStore((state) => state.showSourceList);
 
   const { data: sources } = useSources(notebookId);
   const source = sources?.find((row) => row.id === sourceId);
@@ -46,7 +46,17 @@ export function SourceViewer({ notebookId }: { notebookId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b px-3 py-2">
+      <div className="flex items-center gap-1.5 border-b px-2 py-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 shrink-0"
+          aria-label="Back to sources"
+          onClick={showSourceList}
+        >
+          <ChevronLeft className="size-4" />
+        </Button>
+
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
           {source?.title ?? "Source"}
         </h2>
@@ -69,8 +79,8 @@ export function SourceViewer({ notebookId }: { notebookId: string }) {
           variant="ghost"
           size="icon"
           className="size-7"
-          aria-label="Close viewer"
-          onClick={closeViewer}
+          aria-label="Back to sources"
+          onClick={showSourceList}
         >
           <X className="size-4" />
         </Button>

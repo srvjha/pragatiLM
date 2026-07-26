@@ -132,7 +132,14 @@ export async function retrieveWithCorrection(
     rounds,
     retryCount: Math.max(0, rounds.length - 1),
     // FR-3.31: nothing is generated from a set already judged insufficient.
-    belowFloor: bestGrade.score < env.CRAG_MIN_SCORE,
+    //
+    // "Insufficient" is not the same as "could be better". This used to reuse
+    // CRAG_MIN_SCORE, the threshold that decides whether to search again, so
+    // any question the grader scored 5 was refused outright even when the
+    // retrieved passages plainly contained the answer. Refusing is the
+    // strongest thing this system does and it now takes a much lower score, or
+    // an empty set, to trigger it.
+    belowFloor: best.reranked.length === 0 || bestGrade.score < env.CRAG_REFUSE_BELOW,
   };
 }
 

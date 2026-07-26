@@ -66,6 +66,35 @@ describe("prose chunker", () => {
     }
   });
 
+  it("never carries one page's text into a chunk labelled with another", async () => {
+    // The bug this guards against was invisible in the locators and obvious in
+    // the text: the page rule stopped the blocks merging, and the overlap
+    // carried the previous page's words across anyway. Every citation after
+    // the first then quoted one page while opening another.
+    const pages = [
+      proseBlock("Alpha content about consensus and quorums.", 1),
+      proseBlock("Bravo content about raft and elections.", 2),
+      proseBlock("Charlie content about sharding and keys.", 3),
+    ];
+
+    const chunks = await chunkProse(pages, options);
+
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]?.text).toContain("Alpha");
+    expect(chunks[0]?.text).not.toContain("Bravo");
+
+    expect(chunks[1]?.text).toContain("Bravo");
+    expect(chunks[1]?.text).not.toContain("Alpha");
+
+    expect(chunks[2]?.text).toContain("Charlie");
+    expect(chunks[2]?.text).not.toContain("Bravo");
+
+    // And the locator each one claims is the page its text actually came from.
+    expect(chunks.map((chunk) => (chunk.locator.kind === "pdf" ? chunk.locator.page : 0))).toEqual([
+      1, 2, 3,
+    ]);
+  });
+
   it("splits a single block that is already larger than the target", async () => {
     const chunks = await chunkProse([proseBlock(words(3000), 7)], options);
 

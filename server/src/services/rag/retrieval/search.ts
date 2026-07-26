@@ -29,6 +29,13 @@ const anyTerm = (text: string) =>
 function qdrantFilter(scope: Scope) {
   const must: Record<string, unknown>[] = [
     { key: "notebookId", match: { value: scope.notebookId } },
+    // Only vectors from the model currently in use. Comparing a query vector
+    // against one produced by a different model yields a number, not a
+    // similarity, and those numbers happily outrank the real passages: a
+    // notebook whose first page answers the question refuses it instead. A
+    // model change now makes old vectors invisible until the source is
+    // re-indexed, which is the behaviour FR-3.6 always described.
+    { key: "embeddingModel", match: { value: embeddingProvider().model } },
   ];
 
   if (scope.sourceIds.length > 0) {
