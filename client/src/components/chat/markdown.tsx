@@ -3,6 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { CitationDto } from "@/types/api";
+import { describeLocator } from "./citation-chips";
 
 /**
  * FR-4.5 and FR-5.2. Markers written by the model as [1] become clickable pills
@@ -68,13 +69,17 @@ function withMarkers(
 
       if (citation) {
         parts.push(
+          // Styled as the affordance it is. A grey pill that happened to be
+          // clickable told nobody it was: it now carries the marker colour on
+          // hover, which is the same colour the cited passage gets in the
+          // viewer, so the two read as the same gesture.
           <button
             key={`${key}-${match.index}`}
             type="button"
             onClick={() => onCite(citation)}
-            title={citation.snippet}
-            aria-label={`Open citation ${index}`}
-            className="bg-muted hover:bg-accent text-muted-foreground hover:text-foreground mx-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded px-1 align-baseline text-[10px] font-medium transition-colors"
+            title={`Open ${describeLocator(citation.locator)} — click to see this passage in the source`}
+            aria-label={`Open the source for citation ${index}, ${describeLocator(citation.locator)}`}
+            className="border-primary/30 text-primary hover:bg-marker hover:text-marker-foreground hover:border-marker mx-0.5 inline-flex h-4 min-w-4 cursor-pointer items-center justify-center rounded-sm border px-1 align-super font-mono text-[10px] font-medium transition-colors"
           >
             {index}
           </button>,

@@ -46,12 +46,37 @@ export const liveYoutubeClient: YoutubeClient = {
       throw new ExtractionError("That video could not be loaded. It may be private or removed.");
     }
 
+    // Whether the video HAS captions and whether YouTube will SERVE them are
+    // two different questions, and conflating them produced a message that was
+    // simply false: a video with a caption track was reported as having
+    // captions disabled, which sent people looking for a setting to change on
+    // a video they may not even own.
+    const tracks = info.captions?.caption_tracks ?? [];
+
+    if (tracks.length === 0) {
+      throw new ExtractionError(
+        "This video has no captions. Upload a VTT or SRT transcript for it instead.",
+      );
+    }
+
     let transcript;
     try {
       transcript = await info.getTranscript();
     } catch {
+      // The track exists and YouTube still refuses to hand it over. This is
+      // their side, not a setting on the video, so the message says so and
+      // points at the route that does work.
+      const languages = tracks
+        .map((track) => String(track.name?.text ?? track.language_code ?? "").trim())
+        .filter(Boolean)
+        .slice(0, 3)
+        .join(", ");
+
       throw new ExtractionError(
-        "This video has captions disabled. Upload a VTT or SRT transcript for it instead.",
+        `YouTube would not release the captions for this video${
+          languages ? ` (it has: ${languages})` : ""
+        }. This is a restriction on their side, not a setting on the video. ` +
+          "Download the transcript yourself and add it here as a VTT or SRT source.",
       );
     }
 

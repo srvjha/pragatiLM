@@ -124,6 +124,8 @@ export async function completeMessage(input: {
         messageId: input.messageId,
         sourceId: citation.sourceId,
         chunkId: citation.chunkId,
+        sourceTitle: citation.sourceTitle,
+        sourceType: citation.sourceType,
         snippet: citation.snippet,
         locator: citation.locator,
         score: Math.round(citation.score * 1000),

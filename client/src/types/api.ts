@@ -83,6 +83,10 @@ export type CitationDto = {
   messageId: string;
   sourceId: string | null;
   chunkId: string | null;
+  /** The source's name and kind when the answer was written, copied so a
+      citation still describes itself after the source is deleted. */
+  sourceTitle: string;
+  sourceType: string;
   snippet: string;
   locator: Locator;
   score: number | null;

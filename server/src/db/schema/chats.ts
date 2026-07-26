@@ -1,4 +1,13 @@
-import { pgTable, uuid, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  uuid,
+  text,
+  varchar,
+  integer,
+  timestamp,
+  jsonb,
+  index,
+} from "drizzle-orm/pg-core";
 import { notebooks } from "./notebooks";
 import { sources } from "./sources";
 import { chunks } from "./chunks";
@@ -53,6 +62,13 @@ export const citations = pgTable(
     // text and the UI marks the source as removed, per FR-2.11.
     sourceId: uuid("source_id").references(() => sources.id, { onDelete: "set null" }),
     chunkId: uuid("chunk_id").references(() => chunks.id, { onDelete: "set null" }),
+
+    // The source's name and kind at the time of the answer, copied for the same
+    // reason as the snippet. Deleting a source nulls sourceId above, and without
+    // these a historic citation could not even say what it used to point at,
+    // which is what FR-2.11 requires it to keep doing.
+    sourceTitle: varchar("source_title", { length: 300 }).notNull().default(""),
+    sourceType: varchar("source_type", { length: 16 }).notNull().default(""),
 
     // Snippet and locator are copied, not looked up. That is what lets an old
     // answer still resolve after the source has been re-indexed (FR-5.10).
