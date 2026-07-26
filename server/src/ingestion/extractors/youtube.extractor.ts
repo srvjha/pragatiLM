@@ -2,6 +2,7 @@ import { Innertube } from "youtubei.js";
 import { sha256 } from "hash-wasm";
 import { parseYoutubeUrl } from "@/lib/youtube";
 import { fetchYoutubeCaptions, hasYtDlp } from "@/lib/ytdlp";
+import { fetchTranscriptViaLangchain } from "@/lib/youtube-langchain";
 import { childLogger } from "@/lib/logger";
 import {
   ExtractionError,
@@ -22,7 +23,15 @@ export type VideoTranscript = {
   title: string;
   author?: string;
   durationSec?: number;
+  /** Timed cues when the route provides them. */
   cues: Cue[];
+  /**
+   * Plain transcript text, when the route returns no timings. The extractor
+   * emits character range locators for these instead of timestamps, so a
+   * citation still opens the right passage without claiming a second it cannot
+   * actually seek to.
+   */
+  text?: string;
 };
 
 export type YoutubeClient = {
@@ -75,12 +84,25 @@ export const liveYoutubeClient: YoutubeClient = {
       ...(info.basic_info.duration ? { durationSec: info.basic_info.duration } : {}),
     };
 
-    // yt-dlp first when it is installed. YouTube's own transcript API answers
-    // 400 for everything now, so trying it first would only add a doomed round
-    // trip to the common path.
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    const languages = tracks.map((track) => String(track.language_code ?? "")).filter(Boolean);
+
+    // LangChain's loader first.
+    const viaLangchain = await fetchTranscriptViaLangchain(url, languages);
+    if (viaLangchain) {
+      return {
+        title: viaLangchain.title ?? title,
+        ...extras,
+        ...(viaLangchain.author ? { author: viaLangchain.author } : {}),
+        cues: [],
+        text: viaLangchain.text,
+      };
+    }
+
+    // yt-dlp next, which is the route that also carries timings.
     if (await hasYtDlp()) {
       try {
-        const cues = await fetchYoutubeCaptions(`https://www.youtube.com/watch?v=${videoId}`);
+        const cues = await fetchYoutubeCaptions(url);
         if (cues.length > 0) return { title, ...extras, cues };
         log.warn({ videoId }, "yt-dlp returned no cues, falling back");
       } catch (error) {
@@ -185,17 +207,27 @@ export function createYoutubeExtractor(api: YoutubeClient = liveYoutubeClient): 
       const video = await api.fetchTranscript(target.videoId);
       await input.onProgress?.("Reading captions", 60);
 
-      const blocks: Block[] = video.cues.map((cue) => ({
-        text: cue.text,
-        locator: { kind: "timed", startSec: cue.startSec, endSec: cue.endSec },
-      }));
+      // A route that returned timings gives timed blocks. A route that returned
+      // only text gives character ranges instead: the passage a citation opens
+      // is still exact, it just cannot seek the player to a second, and
+      // inventing a plausible timestamp would be worse than not having one.
+      const blocks: Block[] = video.cues.length
+        ? video.cues.map((cue) => ({
+            text: cue.text,
+            locator: { kind: "timed", startSec: cue.startSec, endSec: cue.endSec },
+          }))
+        : paragraphBlocks(video.text ?? "");
+
+      if (blocks.length === 0) {
+        throw new ExtractionError("That video's transcript came back empty.");
+      }
 
       return {
         title: video.title,
         blocks,
         metadata: {
           videoId: target.videoId,
-          cueCount: blocks.length,
+          cueCount: video.cues.length,
           ...(video.author ? { author: video.author } : {}),
           ...(video.durationSec !== undefined
             ? { durationSec: video.durationSec }
@@ -207,3 +239,39 @@ export function createYoutubeExtractor(api: YoutubeClient = liveYoutubeClient): 
 }
 
 export const youtubeExtractor = createYoutubeExtractor();
+
+/**
+ * Splits a plain transcript into blocks that carry their own character range.
+ *
+ * Paragraph first, and only falling back to sentences when the transcript
+ * arrives as one unbroken run, which auto generated captions usually do. The
+ * offsets are measured against the original string so a locator points at the
+ * real position in the stored text rather than at a reconstruction of it.
+ */
+function paragraphBlocks(text: string): Block[] {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return [];
+
+  const pattern = /[^\n]+(?:\n(?!\n)[^\n]+)*/g;
+  const parts = trimmed.match(pattern) ?? [];
+  const pieces = parts.length > 1 ? parts : (trimmed.match(/[^.!?]+[.!?]*\s*/g) ?? [trimmed]);
+
+  const blocks: Block[] = [];
+  let cursor = 0;
+
+  for (const piece of pieces) {
+    const startChar = trimmed.indexOf(piece, cursor);
+    if (startChar === -1) continue;
+
+    cursor = startChar + piece.length;
+    const body = piece.trim();
+    if (body.length === 0) continue;
+
+    blocks.push({
+      text: body,
+      locator: { kind: "text", startChar, endChar: startChar + piece.length },
+    });
+  }
+
+  return blocks;
+}
