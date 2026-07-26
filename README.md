@@ -40,8 +40,6 @@ Check `http://localhost:4000/api/health`. It reports reachability for Postgres, 
 
 **The environment is parsed once at boot.** Editing `server/.env` does nothing until you restart the API and the worker.
 
-Full setup, including production on managed services, is in [`docs/ENVIRONMENT.txt`](docs/ENVIRONMENT.txt).
-
 ## Accounts
 
 Authentication is [Better Auth](https://better-auth.com) against the same Postgres database.
@@ -165,7 +163,6 @@ The suite forces the fake embedding provider and reports no LLM credentials, so 
 
 ## Documentation
 
-- [`docs/ENVIRONMENT.txt`](docs/ENVIRONMENT.txt), every variable, local setup and production without Docker
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), components and data flow
 - [`docs/RETRIEVAL.md`](docs/RETRIEVAL.md), one real question traced end to end
 - [`server/README.md`](server/README.md), API reference, queues, troubleshooting
