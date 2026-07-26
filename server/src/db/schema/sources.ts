@@ -22,6 +22,11 @@ export const sources = pgTable(
       .references(() => notebooks.id, { onDelete: "cascade" }),
     type: sourceTypeEnum("type").notNull(),
     title: text("title").notNull(),
+    // True once the person has named this source themselves. Ingestion names a
+    // source from its own content, and a YouTube URL is added before anything
+    // has fetched the video, so the row starts out named after its id. This
+    // flag is what stops a re-index throwing away a name someone chose.
+    renamed: boolean("renamed").notNull().default(false),
 
     status: sourceStatusEnum("status").notNull().default("QUEUED"),
     // Free text detail within the status, for example "page 12 of 40". The dot

@@ -2,7 +2,7 @@ import { extractorFor, ExtractionError } from "@/ingestion/extractors";
 import { chunkBlocks } from "@/services/rag/chunker";
 import { embeddingProvider } from "@/providers/embedding";
 import { replaceChunksForSource, deleteChunksForSource } from "@/db/repositories/chunk.repository";
-import { findSourceById, insertSource } from "@/db/repositories/source.repository";
+import { findSourceById, insertSource, updateSource } from "@/db/repositories/source.repository";
 import { getFile, putFile } from "@/db/repositories/source-file.repository";
 import { setSourceStatus } from "@/services/status.service";
 import { buildPoints, deleteBySource, upsertPoints } from "@/vector/chunk.vector-repository";
@@ -39,6 +39,18 @@ export async function runIngestion(sourceId: string, reindex = false): Promise<I
 
   if (extracted.siblings && extracted.siblings.length > 0) {
     return expandPlaylist(source, extracted.siblings);
+  }
+
+  // The extractor is the first thing that knows what a source is actually
+  // called: a YouTube URL is added before anything has fetched the video, so
+  // the row starts life named after its own id. Renaming it here is the only
+  // moment the real title is known.
+  //
+  // A title the person chose is never overwritten. `renamed` is set when they
+  // edit it, so a deliberate name survives a re-index.
+  if (extracted.title && !source.renamed && extracted.title !== source.title) {
+    await updateSource(source.notebookId, source.id, { title: extracted.title });
+    log.info({ sourceId: source.id, title: extracted.title }, "named the source from its content");
   }
 
   await setSourceStatus({

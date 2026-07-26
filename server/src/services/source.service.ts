@@ -194,7 +194,12 @@ export async function updateSource(
   sourceId: string,
   values: { title?: string | undefined; selected?: boolean | undefined },
 ): Promise<SourceDto> {
-  const row = await repo.updateSource(notebookId, sourceId, values);
+  // A title arriving through this path came from the person, so it is marked
+  // as theirs and ingestion stops renaming the source from its content.
+  const row = await repo.updateSource(notebookId, sourceId, {
+    ...values,
+    ...(values.title !== undefined ? { renamed: true } : {}),
+  });
   if (!row) throw notFound("Source not found");
   return toDto(row);
 }

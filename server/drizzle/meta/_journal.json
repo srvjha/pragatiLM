@@ -29,6 +29,13 @@
       "when": 1785081042204,
       "tag": "0003_last_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785089201234,
+      "tag": "0004_supreme_morlocks",
+      "breakpoints": true
     }
   ]
 }

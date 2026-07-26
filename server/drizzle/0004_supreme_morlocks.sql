@@ -1,0 +1,1 @@
+ALTER TABLE "sources" ADD COLUMN "renamed" boolean DEFAULT false NOT NULL;

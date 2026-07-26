@@ -58,7 +58,11 @@ export async function insertSource(values: NewSource): Promise<Source> {
 export async function updateSource(
   notebookId: string,
   sourceId: string,
-  values: { title?: string | undefined; selected?: boolean | undefined },
+  values: {
+    title?: string | undefined;
+    selected?: boolean | undefined;
+    renamed?: boolean | undefined;
+  },
 ): Promise<Source | undefined> {
   const [row] = await db
     .update(sources)
