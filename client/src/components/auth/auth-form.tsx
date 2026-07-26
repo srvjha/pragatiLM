@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { signIn, signUp } from "@/lib/auth-client";
 import { useAuthMethods } from "@/features/auth/hooks";
+import { GitHubIcon, GoogleIcon } from "./provider-icons";
 
 type Mode = "sign-in" | "sign-up";
 
@@ -95,6 +96,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
                   })
                 }
               >
+                <GoogleIcon className="size-4" />
                 Continue with Google
               </Button>
             )}
@@ -110,6 +112,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
                   })
                 }
               >
+                <GitHubIcon className="size-4" />
                 Continue with GitHub
               </Button>
             )}
