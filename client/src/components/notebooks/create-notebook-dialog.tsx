@@ -41,17 +41,34 @@ export function CreateNotebookDialog({ trigger, onCreate }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <Input
-          autoFocus
-          value={name}
-          maxLength={80}
-          placeholder="Untitled notebook"
-          aria-label="Notebook name"
-          onChange={(event) => setName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") submit();
-          }}
-        />
+        {/* The name has always been optional, but nothing said so: an empty
+            field with a Create button beside it reads as required. The label
+            says it outright now, and the button changes to match, so the
+            choice is visible rather than something to discover. */}
+        <div className="space-y-1.5">
+          <label htmlFor="notebook-name" className="text-sm font-medium">
+            Name{" "}
+            <span className="text-muted-foreground font-normal">
+              (optional)
+            </span>
+          </label>
+          <Input
+            autoFocus
+            id="notebook-name"
+            value={name}
+            maxLength={80}
+            placeholder="Untitled notebook"
+            aria-label="Notebook name"
+            className="h-9"
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") submit();
+            }}
+          />
+          <p className="text-muted-foreground text-xs">
+            You can rename it at any time.
+          </p>
+        </div>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowUp,
+  FileUp,
   Loader2,
   RotateCw,
   Square,
@@ -124,6 +125,7 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
           {persisted.length === 0 && !state.streaming && (
             <EmptyState
               canAsk={canAsk}
+              sourceCount={sources?.length ?? 0}
               titles={ready.map((source) => source.title)}
               onPick={(question) => {
                 setDraft(question);
@@ -294,18 +296,42 @@ function MessageBubble({
 
 function EmptyState({
   canAsk,
+  sourceCount,
   titles,
   onPick,
 }: {
   canAsk: boolean;
+  /** Every source in the notebook, not just the ready ones. */
+  sourceCount: number;
   titles: string[];
   onPick: (question: string) => void;
 }) {
+  // A notebook with nothing in it is waiting for the person, not for a job.
+  // Showing a spinner here claimed work was happening that had never been
+  // started, and left a new notebook looking broken.
+  if (sourceCount === 0) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
+        <FileUp
+          className="text-muted-foreground mb-4 size-8"
+          strokeWidth={1.25}
+        />
+        <h2 className="text-lg font-semibold">Add a source to get started</h2>
+        <p className="text-muted-foreground mt-1.5 max-w-sm font-serif text-sm leading-relaxed">
+          A PDF, a YouTube link, a web page, a transcript or pasted text.
+          Questions are answered from what you add here and nothing else.
+        </p>
+      </div>
+    );
+  }
+
+  // Sources exist but none is queryable yet, so this genuinely is a wait.
   if (!canAsk) {
     return (
-      <div className="text-muted-foreground py-16 text-center text-sm">
-        <Loader2 className="mx-auto mb-3 size-5 animate-spin opacity-40" />
-        Waiting for a source to finish indexing.
+      <div className="text-muted-foreground flex min-h-[60vh] flex-col items-center justify-center px-6 text-center text-sm">
+        <Loader2 className="mb-3 size-5 animate-spin opacity-40" />
+        Indexing your {sourceCount === 1 ? "source" : "sources"}. You can ask as
+        soon as one turns green.
       </div>
     );
   }

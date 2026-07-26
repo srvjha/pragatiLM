@@ -17,7 +17,22 @@ const modelNames: Record<ModelRole, () => string> = {
 
 const cache = new Map<ModelRole, ChatOpenAI>();
 
+/**
+ * Whether a real model can be called.
+ *
+ * False under test regardless of what is in `.env`, which mirrors what the
+ * embedding provider already does. Without this the suite quietly changes
+ * behaviour depending on whether the developer happens to have a working key:
+ * every stage that consults a model would make real network calls, and the
+ * tests written against the deterministic fallback paths would fail on a
+ * machine where the key works and pass on one where it does not. A test that
+ * depends on a missing credential is a test that proves nothing.
+ *
+ * Real models are exercised by `npm run eval`, which is a script for exactly
+ * that reason.
+ */
 export function hasLlmCredentials(): boolean {
+  if (env.NODE_ENV === "test") return false;
   return Boolean(env.OPENAI_API_KEY);
 }
 

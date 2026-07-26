@@ -4,14 +4,37 @@ import { z } from "zod";
 const booleanish = z.enum(["true", "false"]).transform((value) => value === "true");
 
 /**
+ * Removes surrounding quotes left over from pasting a value into `.env`.
+ *
+ * dotenv strips a *matched* pair itself, so `KEY="abc"` already arrives as
+ * `abc`. An unmatched one does not: `KEY="abc` yields a value that literally
+ * begins with a quote character. That cost an afternoon here, because the key
+ * looked right in the file and the only symptom was a 401 from OpenAI naming a
+ * key that started with a quote.
+ *
+ * No credential, URL or model name this application reads legitimately starts
+ * or ends with a quote, so stripping them is safe and never ambiguous.
+ */
+function unquote(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  return value
+    .trim()
+    .replace(/^["']+/, "")
+    .replace(/["']+$/, "");
+}
+
+/**
  * A blank value means unset, not invalid. `.env.example` ships keys with an
  * empty value, and a commented out variable arriving as "" should read the same
  * as a missing one rather than failing startup.
  */
-const optionalString = z.preprocess(
-  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
-  z.string().min(1).optional(),
-);
+const optionalString = z.preprocess((value) => {
+  const cleaned = unquote(value);
+  return typeof cleaned === "string" && cleaned === "" ? undefined : cleaned;
+}, z.string().min(1).optional());
+
+/** A required string, with the same quote tolerance. */
+const requiredString = z.preprocess(unquote, z.string().min(1));
 
 const port = z.coerce.number().int().positive().max(65535);
 const positiveInt = z.coerce.number().int().positive();
@@ -56,7 +79,7 @@ const schema = z.object({
     ),
   CHAT_QUEUE_CONCURRENCY: positiveInt.default(8),
 
-  DATABASE_URL: z.string().min(1),
+  DATABASE_URL: requiredString,
   DATABASE_URL_READONLY: optionalString,
 
   // Signs session cookies. Required in production; see parseEnv below for why
@@ -79,11 +102,11 @@ const schema = z.object({
   // browsers only accept over HTTPS, so it forces Secure on with it.
   AUTH_COOKIE_CROSS_SITE: booleanish.default(false),
 
-  REDIS_URL: z.string().min(1),
+  REDIS_URL: requiredString,
 
   QDRANT_URL: z.url(),
   QDRANT_API_KEY: optionalString,
-  QDRANT_COLLECTION: z.string().min(1).default("chunks"),
+  QDRANT_COLLECTION: requiredString.default("chunks"),
 
   // "fake" swaps in a deterministic stand in so the product can be run and
   // demoed with no API key. It is an explicit opt in, never a silent fallback,
