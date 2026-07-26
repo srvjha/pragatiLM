@@ -39,7 +39,7 @@ log.info(
 );
 
 export const auth = betterAuth({
-  appName: "doChatLM",
+  appName: "pragatiLM",
   secret: authSecret,
   baseURL: env.BETTER_AUTH_URL,
   basePath: "/api/auth",

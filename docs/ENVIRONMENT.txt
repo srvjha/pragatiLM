@@ -1,5 +1,5 @@
 ===============================================================================
-doChatLM - ENVIRONMENT SETUP GUIDE
+pragatiLM - ENVIRONMENT SETUP GUIDE
 ===============================================================================
 
 Covers both projects, local development and production.

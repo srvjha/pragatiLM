@@ -30,7 +30,7 @@ export function Wordmark({
       )}
       style={{ fontVariationSettings: '"wdth" 90' }}
     >
-      doChatLM
+      pragatiLM
       <span
         className={cn(
           "marked font-mono leading-none font-medium",
