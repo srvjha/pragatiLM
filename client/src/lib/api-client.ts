@@ -36,6 +36,10 @@ export async function apiFetch<T>(
   try {
     response = await fetch(`${API_URL}/api${path}`, {
       ...init,
+      // The session lives in a cookie set by the API on its own origin, so
+      // every call has to opt in to sending it. Without this the whole app is
+      // signed out from the server's point of view.
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...init?.headers,

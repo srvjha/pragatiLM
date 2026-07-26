@@ -24,6 +24,7 @@ import { WebView } from "./web-view";
 export function SourceViewer({ notebookId }: { notebookId: string }) {
   const sourceId = useUiStore((state) => state.viewerSourceId);
   const locator = useUiStore((state) => state.viewerLocator);
+  const snippet = useUiStore((state) => state.viewerSnippet);
   const closeViewer = useUiStore((state) => state.closeViewer);
 
   const { data: sources } = useSources(notebookId);
@@ -88,9 +89,13 @@ export function SourceViewer({ notebookId }: { notebookId: string }) {
 
         {data?.kind === "pdf" && (
           <PdfView
+            // Remounts when a different citation is opened, so the viewer
+            // starts fresh at the new page instead of syncing state to it.
+            key={`${sourceId}:${locator?.kind === "pdf" ? locator.page : 0}:${snippet ?? ""}`}
             notebookId={notebookId}
             sourceId={sourceId}
             locator={locator}
+            snippet={snippet}
           />
         )}
         {data?.kind === "timed" && (

@@ -24,14 +24,26 @@ export function fetchPodcasts(notebookId: string): Promise<PodcastDto[]> {
   return apiFetch<PodcastDto[]>(`/notebooks/${notebookId}/podcasts`);
 }
 
+export type VoicePairOption = { id: string; label: string };
+
+/** The pairings the server accepts, so the picker cannot offer an invalid one. */
+export function fetchVoicePairs(
+  notebookId: string,
+): Promise<VoicePairOption[]> {
+  return apiFetch<VoicePairOption[]>(
+    `/notebooks/${notebookId}/podcasts/voice-pairs`,
+  );
+}
+
 export function createPodcast(
   notebookId: string,
   sourceIds: string[],
   lengthMinutes: 3 | 6 | 10,
+  voicePair: string,
 ): Promise<PodcastDto> {
   return apiFetch<PodcastDto>(`/notebooks/${notebookId}/podcasts`, {
     method: "POST",
-    body: JSON.stringify({ sourceIds, lengthMinutes }),
+    body: JSON.stringify({ sourceIds, lengthMinutes, voicePair }),
   });
 }
 

@@ -17,7 +17,15 @@ import { useUiStore } from "@/stores/ui-store";
  * FR-8.1: at 1024px and up the rail is a static column. Below that it becomes an
  * overlay drawer, so the main pane keeps the full width on a phone.
  */
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  notebookId,
+}: {
+  children: React.ReactNode;
+  /** Shown in the header, so the current notebook is named even when the rail
+      is collapsed into a drawer. */
+  notebookId?: string;
+}) {
   const { data: notebooks } = useNotebooks();
   const { railOpen, setRailOpen } = useUiStore();
 
@@ -31,7 +39,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-dvh flex-col">
-      <TopBar />
+      <TopBar notebookId={notebookId} />
 
       <div className="relative flex min-h-0 flex-1">
         {railOpen && (

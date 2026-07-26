@@ -79,7 +79,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: string }) {
   );
 
   return (
-    <AppShell>
+    <AppShell notebookId={notebookId}>
       {viewerOpen && canSplit ? (
         <Group orientation="horizontal" className="h-full">
           <Panel id="chat" minSize={30}>

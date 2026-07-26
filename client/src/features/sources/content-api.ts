@@ -18,6 +18,22 @@ export function sourceContentUrl(notebookId: string, sourceId: string): string {
   return `${API_URL}/api/notebooks/${notebookId}/sources/${sourceId}/file`;
 }
 
+/**
+ * The same file, shaped for react-pdf.
+ *
+ * Handing it a bare URL string makes it fetch without credentials, which under
+ * authentication means every PDF comes back 401 and the viewer renders an
+ * error. The object form is what carries the session cookie. A plain `href` on
+ * a link does not need this, because a browser navigation sends the cookie by
+ * itself.
+ */
+export function sourcePdfSource(
+  notebookId: string,
+  sourceId: string,
+): { url: string; withCredentials: true } {
+  return { url: sourceContentUrl(notebookId, sourceId), withCredentials: true };
+}
+
 export function fetchSourceContent(
   notebookId: string,
   sourceId: string,

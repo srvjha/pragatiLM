@@ -67,6 +67,9 @@ export function useChatStream(notebookId: string, onFinished: () => void) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ content, sourceIds }),
             signal: abort.signal,
+            // The stream is a cross origin request to the API, so it needs the
+            // session cookie like every other call.
+            credentials: "include",
             // Without this the browser suspends the stream when the tab is hidden.
             openWhenHidden: true,
 

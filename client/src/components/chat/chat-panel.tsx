@@ -97,6 +97,9 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
     setViewerCitation({
       sourceId: citation.sourceId,
       locator: citation.locator,
+      // Carried so the viewer can highlight the quoted text, not just turn to
+      // the page it is on.
+      snippet: citation.snippet,
     });
   }
 
@@ -319,19 +322,22 @@ function EmptyState({
       : "What questions does this leave open?",
   ];
 
+  // Centred rather than pinned to the top: an empty transcript is mostly empty
+  // space, and leaving the only thing on screen floating above it reads as a
+  // page that failed to load.
   return (
-    <div className="py-12 text-center">
-      <p className="text-sm font-medium">Ask anything about your sources</p>
-      <p className="text-muted-foreground mt-1 text-xs">
+    <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
+      <h2 className="text-lg font-semibold">Ask anything about your sources</h2>
+      <p className="text-muted-foreground mt-1.5 font-serif text-sm">
         Every answer cites the exact place it came from.
       </p>
-      <div className="mt-4 flex flex-wrap justify-center gap-2">
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
         {suggestions.map((suggestion) => (
           <button
             key={suggestion}
             type="button"
             onClick={() => onPick(suggestion)}
-            className="hover:bg-accent rounded-full border px-3 py-1.5 text-xs transition-colors"
+            className="hover:border-primary/40 hover:bg-accent bg-card rounded-md border px-3 py-1.5 text-xs transition-colors"
           >
             {suggestion}
           </button>

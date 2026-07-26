@@ -7,8 +7,8 @@ import { NotebookWorkspace } from "@/components/layout/notebook-workspace";
 export default async function NotebookPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ notebookId: string }>;
 }) {
-  const { id } = await params;
-  return <NotebookWorkspace notebookId={id} />;
+  const { notebookId } = await params;
+  return <NotebookWorkspace notebookId={notebookId} />;
 }

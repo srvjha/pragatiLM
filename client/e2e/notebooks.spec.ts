@@ -1,15 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-async function resetNotebooks(page: Page): Promise<void> {
-  const response = await page.request.get(`${API}/api/notebooks`);
-  const body = (await response.json()) as { data: { id: string }[] };
-
-  for (const notebook of body.data) {
-    await page.request.delete(`${API}/api/notebooks/${notebook.id}`);
-  }
-}
+import { signUpAndVisitApp } from "./session";
 
 /** Scoped to the list item, because the row and its menu share the name. */
 function row(page: Page, name: string) {
@@ -33,12 +23,8 @@ async function createNotebook(page: Page, name?: string): Promise<void> {
   await page.getByRole("button", { name: "Create", exact: true }).click();
 }
 
-test.beforeEach(async ({ page }) => {
-  await resetNotebooks(page);
-});
-
 test("empty state offers the one primary action", async ({ page }) => {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
 
   await expect(
     page.getByRole("heading", { name: "Create your first notebook" }),
@@ -51,7 +37,7 @@ test("empty state offers the one primary action", async ({ page }) => {
 test("create appears immediately and persists across a reload", async ({
   page,
 }) => {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
   await createNotebook(page, "Distributed systems");
 
   await expect(row(page, "Distributed systems")).toBeVisible();
@@ -64,14 +50,14 @@ test("create appears immediately and persists across a reload", async ({
 test("an empty name falls back to the default, per FR-1.1", async ({
   page,
 }) => {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
   await createNotebook(page);
 
   await expect(row(page, "Untitled notebook")).toBeVisible();
 });
 
 test("inline rename on double click", async ({ page }) => {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
   await createNotebook(page, "Before");
 
   await openRow(page, "Before").dblclick();
@@ -85,7 +71,7 @@ test("inline rename on double click", async ({ page }) => {
 });
 
 test("delete asks first and names what goes with it", async ({ page }) => {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
   await createNotebook(page, "Doomed");
 
   await page.getByRole("button", { name: "Actions for Doomed" }).click();
@@ -102,7 +88,7 @@ test("delete asks first and names what goes with it", async ({ page }) => {
 test("a failed delete rolls the row back and explains why", async ({
   page,
 }) => {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
   await createNotebook(page, "Survivor");
   await expect(row(page, "Survivor")).toBeVisible();
 
@@ -130,7 +116,7 @@ test("a failed delete rolls the row back and explains why", async ({
 });
 
 test("Cmd+K switches notebooks", async ({ page }) => {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
   for (const name of ["Alpha notebook", "Beta notebook"]) {
     await createNotebook(page, name);
     await expect(row(page, name)).toBeVisible();
@@ -146,7 +132,7 @@ test("Cmd+K switches notebooks", async ({ page }) => {
 });
 
 test("the rail collapses to a drawer below 1024px", async ({ page }) => {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
   await createNotebook(page, "Responsive");
 
   const rail = page.getByRole("complementary", { name: "Notebooks" });
@@ -163,7 +149,7 @@ test("the rail collapses to a drawer below 1024px", async ({ page }) => {
 });
 
 test("no horizontal scroll from 360px to 2560px", async ({ page }) => {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
 
   for (const width of [360, 768, 1024, 1280, 1920, 2560]) {
     await page.setViewportSize({ width, height: 900 });

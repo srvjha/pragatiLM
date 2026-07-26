@@ -1,25 +1,17 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { signUpAndVisitApp } from "./session";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 // Playwright runs from the client project root.
 const fixtures = join(process.cwd(), "..", "server", "tests", "fixtures");
-
-async function reset(page: Page): Promise<void> {
-  const response = await page.request.get(`${API}/api/notebooks`);
-  const body = (await response.json()) as { data: { id: string }[] };
-  for (const notebook of body.data) {
-    await page.request.delete(`${API}/api/notebooks/${notebook.id}`);
-  }
-}
 
 /** Opens a notebook so the rail is showing its sources. */
 async function openNotebook(
   page: Page,
   name = "Research notebook",
 ): Promise<void> {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
   await page
     .getByRole("button", {
       name: /^(New notebook|Create your first notebook)$/,
@@ -35,15 +27,11 @@ async function openNotebook(
     .getByRole("button")
     .first()
     .click();
-  await page.waitForURL(/\/notebook\//);
+  await page.waitForURL(/\/app\/[0-9a-f-]{36}/);
   await expect(
     page.getByRole("heading", { name: "Sources", exact: true }),
   ).toBeVisible();
 }
-
-test.beforeEach(async ({ page }) => {
-  await reset(page);
-});
 
 test("empty state names the five supported types", async ({ page }) => {
   await openNotebook(page);

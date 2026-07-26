@@ -1,22 +1,45 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import {
+  Bricolage_Grotesque,
+  Source_Serif_4,
+  JetBrains_Mono,
+} from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/**
+ * Three faces, each with a job, which is the rule the whole interface follows:
+ * the grotesque is the machine speaking, the serif is the material speaking,
+ * and the mono is a locator.
+ *
+ * Bricolage is variable on weight and optical size. Headings set it narrow,
+ * which is where its character shows; at body sizes it stays quiet.
+ */
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
+  subsets: ["latin"],
+  axes: ["opsz"],
+});
+
+/** Answers and source text. A reading face, because this is a reading product. */
+const sourceSerif = Source_Serif_4({
+  variable: "--font-source-serif",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+/** Page numbers, timestamps, scores and citation markers. */
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Notebook RAG",
+  title: {
+    default: "Notebook RAG",
+    template: "%s · Notebook RAG",
+  },
   description:
-    "Ask questions answered only from your own sources, with a citation on every claim.",
+    "Ask questions answered only from your own sources, with a citation on every claim, and a plain refusal when the answer is not in them.",
 };
 
 export default function RootLayout({
@@ -30,7 +53,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${bricolage.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <Providers>{children}</Providers>

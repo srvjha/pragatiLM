@@ -16,6 +16,14 @@ type UiState = {
   viewerSourceId: string | null;
   /** Where in the source to land, set only when opening from a citation. */
   viewerLocator: Locator | null;
+  /**
+   * The quoted text of the citation the viewer was opened from.
+   *
+   * A PDF locator names only a page, which is enough to turn to but not enough
+   * to point at. The snippet is what the highlighter matches against inside
+   * that page's text layer.
+   */
+  viewerSnippet: string | null;
 
   selectedSourceIds: string[];
 
@@ -27,7 +35,11 @@ type UiState = {
   setViewerOpen: (open: boolean) => void;
   setViewerSource: (sourceId: string | null) => void;
   setViewerCitation: (
-    citation: { sourceId: string | null; locator: Locator } | null,
+    citation: {
+      sourceId: string | null;
+      locator: Locator;
+      snippet?: string;
+    } | null,
   ) => void;
   closeViewer: () => void;
   setSelectedSources: (ids: string[]) => void;
@@ -40,6 +52,7 @@ export const useUiStore = create<UiState>((set) => ({
   viewerOpen: false,
   viewerSourceId: null,
   viewerLocator: null,
+  viewerSnippet: null,
   selectedSourceIds: [],
 
   setActiveNotebook: (id) =>
@@ -49,6 +62,7 @@ export const useUiStore = create<UiState>((set) => ({
       viewerOpen: false,
       viewerSourceId: null,
       viewerLocator: null,
+      viewerSnippet: null,
       selectedSourceIds: [],
     }),
 
@@ -63,6 +77,7 @@ export const useUiStore = create<UiState>((set) => ({
     set({
       viewerSourceId,
       viewerLocator: null,
+      viewerSnippet: null,
       viewerOpen: viewerSourceId !== null,
     }),
 
@@ -71,10 +86,12 @@ export const useUiStore = create<UiState>((set) => ({
     set({
       viewerSourceId: citation?.sourceId ?? null,
       viewerLocator: citation?.locator ?? null,
+      viewerSnippet: citation?.snippet ?? null,
       viewerOpen: citation !== null && citation.sourceId !== null,
     }),
 
-  closeViewer: () => set({ viewerOpen: false, viewerLocator: null }),
+  closeViewer: () =>
+    set({ viewerOpen: false, viewerLocator: null, viewerSnippet: null }),
 
   setSelectedSources: (selectedSourceIds) => set({ selectedSourceIds }),
 }));

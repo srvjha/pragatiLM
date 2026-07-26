@@ -6,6 +6,7 @@ import { AudioLines, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -43,11 +44,16 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
   });
 
   const create = useMutation({
-    mutationFn: (lengthMinutes: (typeof lengths)[number]) =>
+    mutationFn: (options: {
+      minutes: (typeof lengths)[number];
+      sourceIds: string[];
+      voicePair: string;
+    }) =>
       api.createPodcast(
         notebookId,
-        ready.map((source) => source.id),
-        lengthMinutes,
+        options.sourceIds,
+        options.minutes,
+        options.voicePair,
       ),
     onSuccess: () => {
       toast.success("Writing the script...");
@@ -78,7 +84,12 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
         <h2 className="text-sm font-semibold">Podcast</h2>
         <CreateDialog
           disabled={ready.length === 0 || create.isPending}
-          onCreate={(minutes) => create.mutate(minutes)}
+          notebookId={notebookId}
+          sources={ready.map((source) => ({
+            id: source.id,
+            title: source.title,
+          }))}
+          onCreate={(options) => create.mutate(options)}
         />
       </div>
 
@@ -217,13 +228,34 @@ function describeStage(episode: PodcastDto): string {
 
 function CreateDialog({
   disabled,
+  notebookId,
+  sources,
   onCreate,
 }: {
   disabled: boolean;
-  onCreate: (minutes: (typeof lengths)[number]) => void;
+  notebookId: string;
+  /** The ready sources, which are the only ones that can be drawn from. */
+  sources: { id: string; title: string }[];
+  onCreate: (options: {
+    minutes: (typeof lengths)[number];
+    sourceIds: string[];
+    voicePair: string;
+  }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [minutes, setMinutes] = useState<(typeof lengths)[number]>(3);
+  const [voicePair, setVoicePair] = useState("warm");
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+
+  // Fetched rather than hardcoded, so the options and the values the API
+  // validates are the same list.
+  const { data: pairs } = useQuery({
+    queryKey: ["voice-pairs", notebookId],
+    queryFn: () => api.fetchVoicePairs(notebookId),
+    staleTime: Infinity,
+  });
+
+  const chosen = sources.filter((source) => !excluded.has(source.id));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -244,31 +276,88 @@ function CreateDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex gap-2">
-          {lengths.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setMinutes(option)}
-              className={cn(
-                "flex-1 rounded-lg border py-3 text-sm transition-colors",
-                minutes === option
-                  ? "border-foreground/40 bg-accent"
-                  : "hover:bg-accent/50",
-              )}
-            >
-              {option} min
-            </button>
-          ))}
-        </div>
+        <Fieldset label="Length">
+          <div className="flex gap-2">
+            {lengths.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setMinutes(option)}
+                className={cn(
+                  "flex-1 rounded-md border py-2.5 text-sm transition-colors",
+                  minutes === option
+                    ? "border-primary bg-accent"
+                    : "hover:bg-accent/50",
+                )}
+              >
+                {option} min
+              </button>
+            ))}
+          </div>
+        </Fieldset>
+
+        <Fieldset label="Voices">
+          <div className="flex gap-2">
+            {(pairs ?? []).map((pair) => (
+              <button
+                key={pair.id}
+                type="button"
+                onClick={() => setVoicePair(pair.id)}
+                className={cn(
+                  "flex-1 rounded-md border py-2.5 text-sm transition-colors",
+                  voicePair === pair.id
+                    ? "border-primary bg-accent"
+                    : "hover:bg-accent/50",
+                )}
+              >
+                {pair.label}
+              </button>
+            ))}
+          </div>
+        </Fieldset>
+
+        <Fieldset label={`Sources (${chosen.length} of ${sources.length})`}>
+          <div className="max-h-40 space-y-1 overflow-y-auto">
+            {sources.map((source) => (
+              <label
+                key={source.id}
+                className="hover:bg-accent/50 flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm"
+              >
+                <Checkbox
+                  checked={!excluded.has(source.id)}
+                  onCheckedChange={(checked) =>
+                    setExcluded((previous) => {
+                      const next = new Set(previous);
+                      if (checked === true) next.delete(source.id);
+                      else next.add(source.id);
+                      return next;
+                    })
+                  }
+                />
+                <span className="truncate">{source.title}</span>
+              </label>
+            ))}
+          </div>
+        </Fieldset>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Cancel
           </Button>
           <Button
+            disabled={chosen.length === 0}
             onClick={() => {
-              onCreate(minutes);
+              onCreate({
+                minutes,
+                // Every source selected is sent as an empty list, which the API
+                // reads as "all of them" and keeps working if one is added
+                // between opening this dialog and the job running.
+                sourceIds:
+                  chosen.length === sources.length
+                    ? []
+                    : chosen.map((s) => s.id),
+                voicePair,
+              });
               setOpen(false);
             }}
           >
@@ -277,6 +366,21 @@ function CreateDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Fieldset({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-muted-foreground text-xs font-medium">{label}</p>
+      {children}
+    </div>
   );
 }
 

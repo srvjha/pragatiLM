@@ -92,7 +92,7 @@ export function NotebookRail() {
                 key={notebook.id}
                 notebook={notebook}
                 active={notebook.id === activeNotebookId}
-                onSelect={() => router.push(`/notebook/${notebook.id}`)}
+                onSelect={() => router.push(`/app/${notebook.id}`)}
                 onRename={(name) => rename.mutate({ id: notebook.id, name })}
                 onDelete={() => setPendingDelete(notebook)}
               />

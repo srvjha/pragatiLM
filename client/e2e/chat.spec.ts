@@ -1,21 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { signUpAndVisitApp } from "./session";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const fixtures = join(process.cwd(), "..", "server", "tests", "fixtures");
-
-async function reset(page: Page): Promise<void> {
-  const response = await page.request.get(`${API}/api/notebooks`);
-  const body = (await response.json()) as { data: { id: string }[] };
-  for (const notebook of body.data) {
-    await page.request.delete(`${API}/api/notebooks/${notebook.id}`);
-  }
-}
 
 /** A notebook with one indexed source, which is the precondition for asking anything. */
 async function notebookWithSource(page: Page): Promise<void> {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
   await page
     .getByRole("button", {
       name: /^(New notebook|Create your first notebook)$/,
@@ -24,7 +16,7 @@ async function notebookWithSource(page: Page): Promise<void> {
     .click();
   await page.getByLabel("Notebook name").fill("Chat notebook");
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await page.waitForURL(/\/notebook\//);
+  await page.waitForURL(/\/app\/[0-9a-f-]{36}/);
 
   await page
     .getByRole("button", { name: "Add source", exact: true })
@@ -42,20 +34,16 @@ async function notebookWithSource(page: Page): Promise<void> {
   });
 }
 
-test.beforeEach(async ({ page }) => {
-  await reset(page);
-});
-
 test("the composer is disabled until a source is ready, and says why", async ({
   page,
 }) => {
-  await page.goto("/");
+  await signUpAndVisitApp(page);
   await page
     .getByRole("button", { name: "Create your first notebook" })
     .click();
   await page.getByLabel("Notebook name").fill("Empty notebook");
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await page.waitForURL(/\/notebook\//);
+  await page.waitForURL(/\/app\/[0-9a-f-]{36}/);
 
   const composer = page.getByLabel("Ask a question");
   await expect(composer).toBeDisabled();

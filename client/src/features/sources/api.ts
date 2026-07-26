@@ -50,6 +50,9 @@ function uploadForm<T>(
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open("POST", `${API_URL}/api${path}`);
+    // The session cookie belongs to the API's origin, so the upload has to be
+    // told to send it. XHR's equivalent of fetch's credentials: "include".
+    request.withCredentials = true;
 
     request.upload.addEventListener("progress", (event) => {
       if (event.lengthComputable) {

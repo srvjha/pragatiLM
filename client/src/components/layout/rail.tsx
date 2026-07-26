@@ -31,7 +31,7 @@ export function Rail() {
         type="button"
         onClick={() => {
           setActiveNotebook(null);
-          router.push("/");
+          router.push("/app");
         }}
         className="hover:bg-accent/60 flex items-center gap-1.5 border-b px-3 py-3 text-left"
       >
