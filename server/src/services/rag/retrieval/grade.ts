@@ -44,10 +44,22 @@ const gradeSchema = z.object({
   reason: z.string().describe("One short sentence explaining the score."),
 });
 
+/**
+ * Two kinds of question, and they need different tests.
+ *
+ * "Merely on topic is not enough" is the right bar for a factual lookup and
+ * exactly wrong for a summary. Asked to explain what a video covers, the
+ * grader went looking for a passage containing a summary, found none, and
+ * refused, because no transcript contains its own summary and never will. The
+ * passages were the material to summarise from; that is what sufficient looks
+ * like for that question.
+ */
 const GRADER_SYSTEM = [
   "You judge whether a set of retrieved passages can answer a question.",
   "Score only on sufficiency of evidence, never on writing quality.",
-  "A passage that is merely on topic does not support an answer; it must contain the facts asked for.",
+  "When the question asks for specific facts, a passage that is merely on topic does not support an answer; it must contain the facts asked for.",
+  "When the question asks for a summary, an overview, the main points, or what a source is about, passages drawn from that material are sufficient by definition. Judge whether they cover the material, not whether any single passage states a summary: the summary is not in the source and is not supposed to be.",
+  "Passages in a language other than the question are still evidence. Do not mark a set insufficient for being in another language.",
   "When something is missing, name it and suggest search terms that would find it.",
   "Do not answer the question yourself.",
 ].join(" ");
