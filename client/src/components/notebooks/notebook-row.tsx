@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -11,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { RelativeTime } from "./relative-time";
 import { isOptimistic } from "@/features/notebooks/hooks";
 import type { NotebookListItemDto } from "@/types/api";
 
@@ -53,8 +53,10 @@ export function NotebookRow({
   }
 
   if (editing) {
+    // The padding matches the row's, so the list does not shift under the
+    // cursor when a name is being changed.
     return (
-      <li className="px-2">
+      <li className="px-2 py-2">
         <Input
           ref={inputRef}
           value={draft}
@@ -79,28 +81,41 @@ export function NotebookRow({
     <li>
       <div
         className={cn(
-          "group flex items-center gap-1 rounded-md px-2 transition-colors",
+          "group relative flex items-center gap-1 rounded-lg pr-1 pl-2 transition-colors",
           active ? "bg-accent" : "hover:bg-accent/60",
           pending && "opacity-60",
         )}
       >
+        {/* The marker is the one place in the rail it is allowed: it marks the
+            notebook currently open, which is the product having matched
+            something, not decoration. */}
+        {active && (
+          <span
+            aria-hidden
+            className="bg-marker absolute inset-y-2 left-0 w-[3px] rounded-full"
+          />
+        )}
+
         <button
           type="button"
           onClick={onSelect}
           onDoubleClick={() => !pending && setEditing(true)}
-          className="flex min-w-0 flex-1 flex-col items-start py-2 text-left"
-          aria-current={active ? "true" : undefined}
+          title={notebook.name}
+          className="focus-visible:outline-ring flex min-w-0 flex-1 flex-col items-start gap-0.5 rounded-md py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2"
+          aria-current={active ? "page" : undefined}
         >
-          <span className="w-full truncate text-sm font-medium">
+          <span className="w-full truncate text-sm leading-5 font-medium">
             {notebook.name}
           </span>
-          <span className="text-muted-foreground text-xs">
+          <span className="text-muted-foreground w-full truncate font-mono text-[0.7rem] leading-4">
             {notebook.sourceCount}{" "}
             {notebook.sourceCount === 1 ? "source" : "sources"}
             {" · "}
-            {formatDistanceToNow(new Date(notebook.lastActivityAt), {
-              addSuffix: true,
-            })}
+            {pending ? (
+              "saving…"
+            ) : (
+              <RelativeTime iso={notebook.lastActivityAt} />
+            )}
           </span>
         </button>
 
@@ -108,7 +123,7 @@ export function NotebookRow({
           <DropdownMenuTrigger
             disabled={pending}
             aria-label={`Actions for ${notebook.name}`}
-            className="hover:bg-accent focus-visible:ring-ring inline-flex size-7 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none data-[popup-open]:opacity-100"
+            className="hover:bg-background/70 focus-visible:outline-ring inline-flex size-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 data-[popup-open]:opacity-100 motion-reduce:transition-none"
           >
             <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>

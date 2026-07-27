@@ -17,9 +17,8 @@ import type { LucideIcon } from "lucide-react";
  * thing about what the product does.
  *
  * What each one does carry is `firstStep`, the kind of source that makes that
- * notebook work, and `askAbout`, which seeds the suggested questions. So the
- * template answers the real question someone has on an empty screen, which is
- * not "what can I name this" but "what do I put in it".
+ * notebook work. So the template answers the real question someone has on an
+ * empty screen, which is not "what can I name this" but "what do I put in it".
  */
 export type NotebookTemplate = {
   id: string;

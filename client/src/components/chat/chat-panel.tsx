@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowUp,
+  Check,
+  Copy,
   FileUp,
   Loader2,
   RotateCw,
@@ -98,6 +101,10 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
 
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  // Mirrored into state purely so the "jump to latest" control can appear.
+  // The ref stays the source of truth for the scrolling itself, because that
+  // runs on every streamed token and must not re-render anything.
+  const [atBottom, setAtBottom] = useState(true);
 
   // Auto scroll yields the moment the user scrolls up, so reading earlier
   // context is not fought by the stream.
@@ -110,8 +117,21 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
   function onScroll() {
     const element = scroller.current;
     if (!element) return;
-    pinned.current =
+
+    const bottom =
       element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+
+    pinned.current = bottom;
+    setAtBottom((was) => (was === bottom ? was : bottom));
+  }
+
+  function jumpToLatest() {
+    const element = scroller.current;
+    if (!element) return;
+
+    pinned.current = true;
+    setAtBottom(true);
+    element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
   }
 
   function submit() {
@@ -173,73 +193,89 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
         }}
       />
 
-      <div
-        ref={scroller}
-        onScroll={onScroll}
-        className="min-h-0 flex-1 overflow-y-auto"
-      >
-        <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
-          {persisted.length === 0 && !state.streaming && (
-            <EmptyState
-              canAsk={canAsk}
-              sourceCount={sources?.length ?? 0}
-              titles={ready.map((source) => source.title)}
-              onPick={(question) => {
-                setDraft(question);
-              }}
-            />
-          )}
+      <div className="relative min-h-0 flex-1">
+        {/* Reading back through a long answer while the next one streams is a
+            normal thing to do, and there was no way back to the bottom except
+            scrolling the whole way by hand. */}
+        {!atBottom && persisted.length > 0 && (
+          <button
+            type="button"
+            onClick={jumpToLatest}
+            className="bg-foreground text-background motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
+          >
+            <ArrowDown className="size-3.5" />
+            Jump to latest
+          </button>
+        )}
 
-          {persisted.map((message) => (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              ungrounded={ungroundedIds.has(message.id)}
-              onCite={openCitation}
-            />
-          ))}
+        <div
+          ref={scroller}
+          onScroll={onScroll}
+          className="h-full overflow-y-auto"
+        >
+          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
+            {persisted.length === 0 && !state.streaming && (
+              <EmptyState
+                canAsk={canAsk}
+                sourceCount={sources?.length ?? 0}
+                titles={ready.map((source) => source.title)}
+                onPick={(question) => {
+                  setDraft(question);
+                }}
+              />
+            )}
 
-          {state.streaming && (
-            <div className="flex flex-col gap-2">
-              <PhaseIndicator phase={state.phase} />
-              {state.content.length > 0 && (
-                <div className="text-sm">
-                  <AnswerMarkdown
-                    content={state.content}
-                    citations={state.citations}
-                    onCite={openCitation}
-                  />
-                  <span className="bg-foreground ml-0.5 inline-block h-4 w-1.5 animate-pulse align-text-bottom" />
-                </div>
-              )}
-            </div>
-          )}
+            {persisted.map((message) => (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                ungrounded={ungroundedIds.has(message.id)}
+                onCite={openCitation}
+              />
+            ))}
 
-          {state.error && (
-            <div className="border-destructive/40 bg-destructive/10 flex items-start gap-3 rounded-lg border p-3 text-sm">
-              <AlertTriangle className="text-destructive mt-0.5 size-4 shrink-0" />
-              <div className="flex-1">
-                <p>{state.error}</p>
-                {/* The question is preserved, so a retry costs nothing. */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => {
-                    reset();
-                    if (chatId && lastAsked) void send(chatId, lastAsked);
-                  }}
-                >
-                  <RotateCw className="size-3.5" />
-                  Try again
-                </Button>
+            {state.streaming && (
+              <div className="flex flex-col gap-2">
+                <PhaseIndicator phase={state.phase} />
+                {state.content.length > 0 && (
+                  <div className="text-sm">
+                    <AnswerMarkdown
+                      content={state.content}
+                      citations={state.citations}
+                      onCite={openCitation}
+                    />
+                    <span className="bg-foreground ml-0.5 inline-block h-4 w-1.5 animate-pulse align-text-bottom" />
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
+
+            {state.error && (
+              <div className="border-destructive/40 bg-destructive/10 flex items-start gap-3 rounded-lg border p-3 text-sm">
+                <AlertTriangle className="text-destructive mt-0.5 size-4 shrink-0" />
+                <div className="flex-1">
+                  <p>{state.error}</p>
+                  {/* The question is preserved, so a retry costs nothing. */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => {
+                      reset();
+                      if (chatId && lastAsked) void send(chatId, lastAsked);
+                    }}
+                  >
+                    <RotateCw className="size-3.5" />
+                    Try again
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="border-t p-3">
+      <div className="bg-background/80 border-t p-3 backdrop-blur-sm">
         <div className="mx-auto max-w-3xl">
           <div className="relative">
             <Textarea
@@ -258,7 +294,7 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
               placeholder={
                 canAsk
                   ? "Ask anything about your sources..."
-                  : "Add a source and wait for it to turn green before asking"
+                  : "Add a source and wait for it to finish indexing"
               }
               className="max-h-40 min-h-11 resize-none pr-12"
             />
@@ -286,10 +322,29 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
             </div>
           </div>
 
-          {!canAsk && (
+          {/* One line under the composer, and only one: either why you cannot
+              ask yet, or how to send. Showing both at once made the input look
+              like it had failed validation. */}
+          {!canAsk ? (
             <p className="text-muted-foreground mt-2 text-xs">
               Answers come only from indexed sources, so there is nothing to
               answer from yet.
+            </p>
+          ) : (
+            <p className="text-muted-foreground mt-2 flex items-center gap-1.5 font-mono text-[0.68rem]">
+              <kbd className="border-border bg-muted rounded border px-1 py-px">
+                Enter
+              </kbd>
+              to send
+              <span className="opacity-40">·</span>
+              <kbd className="border-border bg-muted rounded border px-1 py-px">
+                Shift
+              </kbd>
+              <span className="opacity-40">+</span>
+              <kbd className="border-border bg-muted rounded border px-1 py-px">
+                Enter
+              </kbd>
+              for a new line
             </p>
           )}
         </div>
@@ -318,17 +373,23 @@ function MessageBubble({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="group/answer flex flex-col gap-2">
       {message.status === "error" ? (
         <p className="text-destructive text-sm">
           {message.content || "This answer failed."}
         </p>
       ) : (
-        <AnswerMarkdown
-          content={message.content}
-          citations={message.citations}
-          onCite={onCite}
-        />
+        <>
+          <AnswerMarkdown
+            content={message.content}
+            citations={message.citations}
+            onCite={onCite}
+          />
+          {/* Revealed on hover rather than always present, because a row of
+              controls under every answer competes with the answers. It stays
+              reachable by keyboard regardless of the pointer. */}
+          <CopyAnswer text={message.content} />
+        </>
       )}
 
       {message.status === "stopped" && (
@@ -347,6 +408,49 @@ function MessageBubble({
       )}
 
       <CitationChips citations={message.citations} onCite={onCite} />
+    </div>
+  );
+}
+
+/**
+ * Copies the answer as the model wrote it, markers and all.
+ *
+ * Deliberately the raw markdown rather than the rendered text: the [1] markers
+ * are the part worth keeping, since they are what makes the answer checkable
+ * once it has been pasted somewhere else.
+ */
+function CopyAnswer({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1600);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  if (text.trim().length === 0) return null;
+
+  return (
+    <div className="flex opacity-0 transition-opacity group-hover/answer:opacity-100 focus-within:opacity-100">
+      <Button
+        variant="ghost"
+        size="xs"
+        className="text-muted-foreground hover:text-foreground gap-1.5"
+        aria-label={copied ? "Answer copied" : "Copy this answer"}
+        onClick={() => {
+          navigator.clipboard
+            .writeText(text)
+            .then(() => setCopied(true))
+            .catch(() => toast.error("Could not copy the answer"));
+        }}
+      >
+        {copied ? (
+          <Check className="size-3 text-primary" />
+        ) : (
+          <Copy className="size-3" />
+        )}
+        {copied ? "Copied" : "Copy"}
+      </Button>
     </div>
   );
 }
@@ -388,7 +492,7 @@ function EmptyState({
       <div className="text-muted-foreground flex min-h-[60vh] flex-col items-center justify-center px-6 text-center text-sm">
         <Loader2 className="mb-3 size-5 animate-spin opacity-40" />
         Indexing your {sourceCount === 1 ? "source" : "sources"}. You can ask as
-        soon as one turns green.
+        soon as the first one is ready.
       </div>
     );
   }

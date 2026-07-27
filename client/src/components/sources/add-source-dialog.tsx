@@ -142,11 +142,14 @@ function Dropzone({
   accept,
   multiple,
   label,
+  hint,
   onFiles,
 }: {
   accept: Record<string, string[]>;
   multiple: boolean;
   label: string;
+  /** Stated up front, because discovering a limit by hitting it is worse. */
+  hint?: string;
   onFiles: (files: File[]) => void;
 }) {
   const onDrop = useCallback(
@@ -163,16 +166,34 @@ function Dropzone({
     <div
       {...getRootProps()}
       className={cn(
-        "flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center transition-colors",
-        isDragActive ? "border-foreground/40 bg-accent" : "hover:bg-accent/50",
+        "flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center",
+        "transition-[border-color,background-color,transform] duration-150",
+        // Unambiguous while a file is over it: at the moment of letting go the
+        // question is "will this land here", and a faint tint does not answer.
+        isDragActive
+          ? "border-primary bg-primary/5 scale-[0.995]"
+          : "hover:border-foreground/30 hover:bg-accent/50",
       )}
     >
       <input {...getInputProps()} aria-label={label} />
-      <Upload className="text-muted-foreground size-5" strokeWidth={1.5} />
-      <p className="text-sm">{label}</p>
+      <Upload
+        className={cn(
+          "size-5 transition-colors",
+          isDragActive ? "text-primary" : "text-muted-foreground",
+        )}
+        strokeWidth={1.5}
+      />
+      <p className="text-sm font-medium">
+        {isDragActive ? "Let go to add" : label}
+      </p>
       <p className="text-muted-foreground text-xs">
         Drop files here, or click to choose
       </p>
+      {hint && (
+        <p className="text-muted-foreground mt-1 font-mono text-[0.65rem]">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -246,6 +267,7 @@ function PdfPane({
         accept={{ "application/pdf": [".pdf"] }}
         multiple
         label="Add PDFs"
+        hint="Up to 10 files, 50 MB each"
         onFiles={upload}
       />
       <UploadProgress files={progress} />
@@ -291,6 +313,7 @@ function VttPane({
         accept={{ "text/vtt": [".vtt"], "application/x-subrip": [".srt"] }}
         multiple={false}
         label="Add a transcript"
+        hint="One .vtt or .srt file, up to 50 MB"
         onFiles={upload}
       />
       <UploadProgress files={progress} />

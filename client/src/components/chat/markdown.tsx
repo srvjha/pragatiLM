@@ -20,7 +20,26 @@ export function AnswerMarkdown({
   onCite: (citation: CitationDto) => void;
 }) {
   return (
-    <div className="prose prose-sm dark:prose-invert prose-pre:bg-muted prose-pre:text-foreground max-w-none break-words">
+    <div
+      className={[
+        // The answer is material, not chrome, so it is set in the reading face
+        // the rest of the product uses for source text. It was inheriting the
+        // interface grotesque, which made an answer look like a dialog.
+        "prose prose-sm dark:prose-invert max-w-none break-words",
+        "font-serif text-[0.95rem] leading-relaxed",
+        // Headings and code are the exceptions: a heading is the machine
+        // labelling a section, and code is a locator-like literal.
+        "prose-headings:font-sans prose-headings:font-semibold prose-headings:tracking-tight",
+        "prose-code:font-mono prose-code:text-[0.85em] prose-code:before:content-none prose-code:after:content-none",
+        "prose-pre:bg-muted prose-pre:text-foreground prose-pre:font-mono",
+        "prose-a:text-primary prose-a:underline-offset-2",
+        // A quotation inside an answer is quoting a source, so it gets the
+        // same left rule the viewer uses rather than Tailwind's default.
+        "prose-blockquote:border-l-2 prose-blockquote:border-border prose-blockquote:not-italic prose-blockquote:font-normal",
+        "prose-strong:font-semibold prose-strong:text-foreground",
+        "prose-th:font-sans prose-th:text-xs prose-th:uppercase prose-th:tracking-wide",
+      ].join(" ")}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

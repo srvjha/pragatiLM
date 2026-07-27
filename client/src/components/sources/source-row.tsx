@@ -79,6 +79,7 @@ export function SourceRow({
   const Icon = typeIcon[source.type];
   const state = dotStateFor(source.status);
   const failed = state === "failed";
+  const working = state === "uploading" || state === "indexing";
 
   function commit() {
     const title = draft.trim();
@@ -128,14 +129,35 @@ export function SourceRow({
           type="button"
           onClick={onOpen}
           onDoubleClick={startEditing}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          // The panel is narrow and source titles are long, so the full one has
+          // to be recoverable without opening the source.
+          title={source.title}
+          className="focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-2 rounded text-left focus-visible:ring-2 focus-visible:outline-none"
         >
           <Icon
             className="text-muted-foreground size-3.5 shrink-0"
             strokeWidth={1.5}
           />
-          <span className="min-w-0 flex-1 truncate text-sm">
-            {source.title}
+
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm">{source.title}</span>
+
+            {/* While a source is being indexed the row is the only place that
+                says so. A pulsing dot alone reported "something is happening"
+                and never which stage or how far in, which on a long PDF is
+                indistinguishable from stuck. */}
+            {working && (
+              <span className="text-muted-foreground mt-0.5 flex items-center gap-1.5 font-mono text-[0.65rem]">
+                <span className="truncate">
+                  {source.statusStage ?? dotLabel[state]}
+                </span>
+                {source.progress > 0 && (
+                  <span className="tabular-nums opacity-70">
+                    {source.progress}%
+                  </span>
+                )}
+              </span>
+            )}
           </span>
 
           <Tooltip>
@@ -178,20 +200,42 @@ export function SourceRow({
         </DropdownMenu>
       </div>
 
+      {/* Progress as a line rather than a number alone, because the useful
+          question during indexing is "is this moving", and a bar answers it at
+          a glance where a percentage has to be read and remembered. */}
+      {working && source.progress > 0 && (
+        <div
+          className="bg-muted mx-2 mb-1.5 h-0.5 overflow-hidden rounded-full"
+          role="progressbar"
+          aria-valuenow={source.progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`Indexing ${source.title}`}
+        >
+          <div
+            className="bg-foreground/40 h-full origin-left rounded-full transition-transform duration-500 ease-out"
+            style={{ transform: `scaleX(${source.progress / 100})` }}
+          />
+        </div>
+      )}
+
       {/* FR-2.10: a failure states its reason in the row and offers a retry, so
           it is never a silent red dot. */}
       {failed && (
-        <div className="text-destructive mt-0.5 mb-1 ml-8 flex items-start gap-2 pr-2 text-xs">
-          <span className="flex-1">
+        <div className="border-destructive/30 bg-destructive/5 mt-1 mb-1.5 ml-8 rounded-md border px-2.5 py-2 pr-2">
+          <p
+            className="text-destructive line-clamp-3 text-xs leading-relaxed"
+            title={source.errorMessage ?? undefined}
+          >
             {source.errorMessage ?? "Indexing failed"}
-          </span>
+          </p>
           <button
             type="button"
             onClick={onReindex}
-            className="hover:text-foreground inline-flex shrink-0 items-center gap-1 underline"
+            className="text-destructive hover:text-foreground focus-visible:ring-ring mt-1.5 inline-flex shrink-0 items-center gap-1 rounded text-xs font-medium underline underline-offset-2 focus-visible:ring-2 focus-visible:outline-none"
           >
             <RotateCw className="size-3" />
-            Retry
+            Try indexing again
           </button>
         </div>
       )}

@@ -3,7 +3,10 @@ import { Suspense } from "react";
 import { AuthForm } from "@/components/auth/auth-form";
 import { AuthFormSkeleton } from "@/components/auth/auth-form-skeleton";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = {
+  title: "Sign in",
+  description: "Sign in to your pragatiLM notebooks.",
+};
 
 /**
  * The form reads the query string, which Next needs a Suspense boundary around

@@ -74,7 +74,13 @@ export function CreateNotebookDialog({ trigger, onCreate }: Props) {
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={submit}>Create</Button>
+          {/* The comment above promised the button would say which of the two
+              things it is about to do, and it did not: it read "Create"
+              whether you had named the notebook or not, which is exactly the
+              ambiguity the optional label was added to remove. */}
+          <Button onClick={submit}>
+            {name.trim().length > 0 ? "Create notebook" : "Create untitled"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

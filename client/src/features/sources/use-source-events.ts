@@ -19,7 +19,7 @@ type SourceEvent = {
 
 /**
  * FR-2.9. One stream per notebook, patched straight into the query cache so a
- * row moves grey to yellow to green without a refetch or a page reload.
+ * row moves from grey through to ready without a refetch or a page reload.
  *
  * EventSource rather than fetch-event-source: this stream carries no auth header
  * and needs no POST body, and EventSource reconnects on its own. Polling is the

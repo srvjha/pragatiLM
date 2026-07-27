@@ -5,6 +5,11 @@ import { AlertCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -41,24 +46,86 @@ export function SourceList({ notebookId }: { notebookId: string }) {
 
   const [pendingDelete, setPendingDelete] = useState<SourceDto | null>(null);
 
+  const total = sources?.length ?? 0;
+  const selectedCount = (sources ?? []).filter((row) => row.selected).length;
+  const allSelected = total > 0 && selectedCount === total;
+
+  /**
+   * One mutation per row rather than a bulk endpoint, because the server has
+   * no such route and inventing one for a control this small is not worth a
+   * migration. Rows already reconcile individually over the event stream.
+   */
+  function setAllSelected(selected: boolean) {
+    for (const source of sources ?? []) {
+      if (source.selected !== selected) {
+        toggle.mutate({ sourceId: source.id, selected });
+      }
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-between px-4 py-2">
-        <h3 className="text-sm font-semibold">Sources</h3>
-        <AddSourceDialog
-          notebookId={notebookId}
-          trigger={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              aria-label="Add source"
-            >
-              <Plus className="size-4" />
-            </Button>
-          }
-        />
+      <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+        <h3 className="text-muted-foreground text-[11px] font-semibold tracking-[0.14em] uppercase">
+          Sources
+        </h3>
+
+        {total > 0 && (
+          <span className="text-muted-foreground font-mono text-[0.65rem] tabular-nums">
+            {selectedCount}/{total}
+          </span>
+        )}
+
+        <div className="ml-auto flex items-center gap-1">
+          {/* A checkbox gates whether a source is searched at all, so a
+              notebook with twenty of them needed twenty clicks to narrow to
+              one, and twenty more to put them back. */}
+          {total > 1 && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-foreground h-7 px-2 text-[0.7rem]"
+                    onClick={() => setAllSelected(!allSelected)}
+                  >
+                    {allSelected ? "None" : "All"}
+                  </Button>
+                }
+              />
+              <TooltipContent>
+                {allSelected
+                  ? "Stop searching every source"
+                  : "Search every source"}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          <AddSourceDialog
+            notebookId={notebookId}
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                aria-label="Add a source"
+              >
+                <Plus className="size-4" />
+              </Button>
+            }
+          />
+        </div>
       </div>
+
+      {/* Silence here would be the notebook quietly refusing every question
+          for a reason nobody could see. */}
+      {total > 0 && selectedCount === 0 && (
+        <p className="border-b px-3 py-2 font-serif text-xs leading-relaxed text-muted-foreground">
+          No source is selected, so there is nothing to answer from. Tick at
+          least one.
+        </p>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">
         {isPending && (
@@ -149,7 +216,7 @@ export function SourceList({ notebookId }: { notebookId: string }) {
                 if (pendingDelete) remove.mutate(pendingDelete.id);
                 setPendingDelete(null);
               }}
-              className="bg-destructive hover:bg-destructive/90 text-white"
+              className="bg-stamp text-stamp-foreground hover:bg-stamp/90"
             >
               Remove source
             </AlertDialogAction>

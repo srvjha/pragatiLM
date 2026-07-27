@@ -46,7 +46,7 @@ export function ClearChatDialog({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
-            className="bg-destructive hover:bg-destructive/90 text-white"
+            className="bg-stamp text-stamp-foreground hover:bg-stamp/90"
           >
             Clear chat
           </AlertDialogAction>

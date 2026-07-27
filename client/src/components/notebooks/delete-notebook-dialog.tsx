@@ -27,7 +27,12 @@ export function DeleteNotebookDialog({
     <AlertDialog open={notebook !== null} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete {notebook?.name}?</AlertDialogTitle>
+          {/* Notebook names run to 80 characters, and a title that wraps to
+              three lines pushes the consequence out of the first glance, which
+              on a destructive dialog is the one thing that must not happen. */}
+          <AlertDialogTitle className="line-clamp-2 break-words">
+            Delete {notebook?.name}?
+          </AlertDialogTitle>
           <AlertDialogDescription>
             {/* The PRD requires the warning to name what goes with it, because
                 this cascade is not recoverable. */}
@@ -40,7 +45,7 @@ export function DeleteNotebookDialog({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
-            className="bg-destructive text-white hover:bg-destructive/90"
+            className="bg-stamp text-stamp-foreground hover:bg-stamp/90"
           >
             Delete notebook
           </AlertDialogAction>

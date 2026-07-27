@@ -197,7 +197,12 @@ function EpisodeRow({
               <span
                 className={cn(
                   "shrink-0 font-medium",
-                  turn.host === "A" ? "text-emerald-600" : "text-sky-600",
+                  // The two hosts need to be told apart, not coloured in.
+                  // Weight and the chart tokens do it inside the palette;
+                  // emerald and sky came from outside it.
+                  turn.host === "A"
+                    ? "text-[var(--color-chart-1)]"
+                    : "text-[var(--color-chart-2)]",
                 )}
               >
                 {turn.host === "A" ? "Host A" : "Host B"}
