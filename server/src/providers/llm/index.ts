@@ -7,12 +7,18 @@ import { env } from "@/config/env";
  * models, because they are structured tasks on a short input and paying for the
  * answering model there would show up directly in time to first token.
  */
-export type ModelRole = "chat" | "query" | "grader";
+export type ModelRole = "chat" | "query" | "grader" | "translator";
 
 const modelNames: Record<ModelRole, () => string> = {
   chat: () => env.CHAT_MODEL,
   query: () => env.QUERY_MODEL,
   grader: () => env.GRADER_MODEL,
+  // Subtitle translation is mechanical and highly parallel, and it is the one
+  // model call a reader waits on with nothing else on screen, so it runs on
+  // the cheapest model by default. Unlike the grader, a weak result here is
+  // visible and correctable rather than silent: the reader can see the
+  // translation is poor and switch back to the original track.
+  translator: () => env.TRANSLATE_MODEL,
 };
 
 const cache = new Map<ModelRole, ChatOpenAI>();

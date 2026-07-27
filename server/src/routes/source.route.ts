@@ -1,6 +1,6 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import * as controller from "@/controllers/source.controller";
-import { getContent, getFileStream } from "@/controllers/source-content.controller";
+import { getCaptions, getContent, getFileStream } from "@/controllers/source-content.controller";
 import { validate } from "@/middleware/validate";
 import { openSseStream } from "@/lib/sse";
 import { channels } from "@/lib/events";
@@ -54,6 +54,7 @@ sourceRouter.post("/web", validate({ body: createWebBody }), controller.createWe
 sourceRouter.post("/youtube", validate({ body: createYoutubeBody }), controller.createYoutube);
 
 sourceRouter.get("/:sourceId/content", validate({ params: sourceIdParams }), getContent);
+sourceRouter.get("/:sourceId/captions", validate({ params: sourceIdParams }), getCaptions);
 sourceRouter.get("/:sourceId/file", validate({ params: sourceIdParams }), getFileStream);
 sourceRouter.get("/:sourceId", validate({ params: sourceIdParams }), controller.get);
 sourceRouter.patch(

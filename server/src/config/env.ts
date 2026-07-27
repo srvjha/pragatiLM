@@ -130,6 +130,12 @@ const schema = z.object({
   // false refusal costs the reader the whole answer, which is worth far more
   // than the fraction of a cent saved per question.
   GRADER_MODEL: z.string().default("gpt-4.1-mini"),
+  // Translating a transcript for the viewer's language switch. Nano by
+  // default because this is a mechanical, heavily parallel task that somebody
+  // is waiting on. Raise it to gpt-4.1-mini if the translations read badly:
+  // nano is noticeably weaker on Devanagari, which is the script most likely
+  // to need this in the first place.
+  TRANSLATE_MODEL: z.string().default("gpt-4.1-nano"),
   COHERE_API_KEY: optionalString,
   RERANK_ENABLED: booleanish.default(true),
 

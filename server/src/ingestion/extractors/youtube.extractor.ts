@@ -11,6 +11,7 @@ import {
   type ExtractionResult,
 } from "./types";
 import type { Block, SiblingSource } from "./types";
+import type { CaptionTrack } from "@/types/domain";
 
 /**
  * Captions only. Whisper style transcription of a video with no caption track is
@@ -32,6 +33,10 @@ export type VideoTranscript = {
    * actually seek to.
    */
   text?: string;
+  /** Every track the video advertises, for the viewer's language switch. */
+  tracks?: CaptionTrack[];
+  /** The track these cues came from. */
+  language?: string;
 };
 
 export type YoutubeClient = {
@@ -85,9 +90,42 @@ export const liveYoutubeClient: YoutubeClient = {
     };
 
     const url = `https://www.youtube.com/watch?v=${videoId}`;
-    const languages = tracks.map((track) => String(track.language_code ?? "")).filter(Boolean);
+    const available: CaptionTrack[] = tracks
+      .map((track) => ({
+        code: String(track.language_code ?? ""),
+        label: String(track.name?.text ?? track.language_code ?? "").trim(),
+      }))
+      .filter((track) => track.code.length > 0);
 
-    // LangChain's loader first.
+    const languages = available.map((track) => track.code);
+
+    // yt-dlp first, because it is the only route that returns timings, and
+    // timings are what make the video watchable next to the transcript: they
+    // are what lets a line seek the player and the player highlight a line.
+    // Ordering LangChain ahead of it cost exactly that, since the loader
+    // returns one undifferentiated block of text and every video that reached
+    // it lost its timeline.
+    if (await hasYtDlp()) {
+      try {
+        const timed = await fetchYoutubeCaptions(url, languages);
+        if (timed) {
+          return {
+            title,
+            ...extras,
+            cues: timed.cues,
+            language: timed.language,
+            tracks: available,
+          };
+        }
+        log.warn({ videoId }, "yt-dlp returned no cues, falling back");
+      } catch (error) {
+        log.warn({ err: error, videoId }, "yt-dlp failed, falling back");
+      }
+    }
+
+    // LangChain's loader next. It always produces something readable, so a
+    // video still indexes when yt-dlp is missing; it just cannot be followed
+    // along with the player.
     const viaLangchain = await fetchTranscriptViaLangchain(url, languages);
     if (viaLangchain) {
       return {
@@ -96,18 +134,8 @@ export const liveYoutubeClient: YoutubeClient = {
         ...(viaLangchain.author ? { author: viaLangchain.author } : {}),
         cues: [],
         text: viaLangchain.text,
+        tracks: available,
       };
-    }
-
-    // yt-dlp next, which is the route that also carries timings.
-    if (await hasYtDlp()) {
-      try {
-        const cues = await fetchYoutubeCaptions(url, languages);
-        if (cues.length > 0) return { title, ...extras, cues };
-        log.warn({ videoId }, "yt-dlp returned no cues, falling back");
-      } catch (error) {
-        log.warn({ err: error, videoId }, "yt-dlp failed, falling back");
-      }
     }
 
     let transcript;
@@ -228,6 +256,8 @@ export function createYoutubeExtractor(api: YoutubeClient = liveYoutubeClient): 
         metadata: {
           videoId: target.videoId,
           cueCount: video.cues.length,
+          ...(video.tracks && video.tracks.length > 0 ? { captionTracks: video.tracks } : {}),
+          ...(video.language ? { captionLanguage: video.language } : {}),
           ...(video.author ? { author: video.author } : {}),
           ...(video.durationSec !== undefined
             ? { durationSec: video.durationSec }

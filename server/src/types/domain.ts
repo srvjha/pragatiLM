@@ -15,6 +15,9 @@ export type WebLocator = {
 
 export type Locator = PdfLocator | TextLocator | TimedLocator | WebLocator;
 
+/** One caption track a video carries, as YouTube advertises it. */
+export type CaptionTrack = { code: string; label: string };
+
 /** Type specific metadata captured at ingestion, shape depends on source type. */
 export type SourceMetadata = {
   pageCount?: number;
@@ -25,6 +28,14 @@ export type SourceMetadata = {
   capturedAt?: string;
   charCount?: number;
   cueCount?: number;
+  /**
+   * Recorded at ingestion so the viewer can offer a language switch without
+   * asking YouTube again on every open. Listing them is one call; fetching a
+   * track is a download, so the tracks are stored and the cues are not.
+   */
+  captionTracks?: CaptionTrack[];
+  /** Which of those tracks was chunked and embedded. */
+  captionLanguage?: string;
 };
 
 export type RoadmapPin = { sourceId: string; startSec: number; endSec: number };

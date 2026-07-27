@@ -60,44 +60,56 @@ export type YtCue = { text: string; startSec: number; endSec: number };
  * yields the same sentence three or four times. The SRT conversion collapses
  * that to one cue per line, which is what the chunker wants.
  */
-export async function fetchYoutubeCaptions(url: string, languages: string[]): Promise<YtCue[]> {
+export async function fetchYoutubeCaptions(
+  url: string,
+  languages: string[],
+): Promise<{ cues: YtCue[]; language: string } | null> {
+  for (const language of orderLanguages(languages)) {
+    // One language at a time, deliberately. Passing several at once means a
+    // single failure aborts the run and the rest are never tried.
+    const cues = await fetchCaptionsInLanguage(url, language);
+    if (cues.length > 0) {
+      log.info({ language, cues: cues.length }, "captions fetched");
+      return { cues, language };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * One language, named exactly, with no fallback to another.
+ *
+ * The viewer's language switcher needs this: asked for Hindi it must return
+ * Hindi or nothing, because silently answering with the English track would
+ * leave the control showing one language and the transcript in another.
+ */
+export async function fetchCaptionsInLanguage(url: string, language: string): Promise<YtCue[]> {
   const directory = await mkdtemp(join(tmpdir(), "notebook-yt-"));
 
   try {
-    for (const language of orderLanguages(languages)) {
-      try {
-        await run(
-          binary(),
-          [
-            "--write-subs",
-            "--write-auto-subs",
-            "--sub-langs",
-            language,
-            "--skip-download",
-            "--convert-subs",
-            "srt",
-            "--no-playlist",
-            "--no-warnings",
-            "-o",
-            join(directory, `cap-${language}`),
-            url,
-          ],
-          { timeout: TIMEOUT_MS },
-        );
-      } catch (error) {
-        // One language at a time, deliberately. Passing several at once means a
-        // single failure aborts the run and the rest are never tried.
-        log.debug({ err: error, language }, "no captions in this language");
-        continue;
-      }
+    await run(
+      binary(),
+      [
+        "--write-subs",
+        "--write-auto-subs",
+        "--sub-langs",
+        language,
+        "--skip-download",
+        "--convert-subs",
+        "srt",
+        "--no-playlist",
+        "--no-warnings",
+        "-o",
+        join(directory, `cap-${language}`),
+        url,
+      ],
+      { timeout: TIMEOUT_MS },
+    );
 
-      const cues = await readCues(directory);
-      if (cues.length > 0) {
-        log.info({ language, cues: cues.length }, "captions fetched");
-        return cues;
-      }
-    }
-
+    return await readCues(directory);
+  } catch (error) {
+    log.debug({ err: error, language }, "no captions in this language");
     return [];
   } finally {
     await rm(directory, { recursive: true, force: true }).catch(() => undefined);

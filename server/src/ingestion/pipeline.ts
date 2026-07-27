@@ -53,6 +53,20 @@ export async function runIngestion(sourceId: string, reindex = false): Promise<I
     log.info({ sourceId: source.id, title: extracted.title }, "named the source from its content");
   }
 
+  // Every extractor has always returned this and nothing ever stored it, so
+  // the column held `{}` for every source ever ingested. It is not decoration:
+  // it carries the page count the PDF viewer sizes itself from, the caption
+  // tracks the language switch is built out of, and the video id without which
+  // a YouTube source renders as a transcript with no video above it.
+  //
+  // Merged rather than replaced, so a field written by an earlier stage is not
+  // lost when a re-index produces a metadata object without it.
+  if (Object.keys(extracted.metadata).length > 0) {
+    await updateSource(source.notebookId, source.id, {
+      metadata: { ...source.metadata, ...extracted.metadata },
+    });
+  }
+
   await setSourceStatus({
     sourceId: source.id,
     notebookId: source.notebookId,

@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { sources } from "@/db/schema";
 import type { NewSource, Source, SourceStatus } from "@/db/schema";
+import type { SourceMetadata } from "@/types/domain";
 
 export async function listSources(notebookId: string): Promise<Source[]> {
   return db
@@ -62,6 +63,7 @@ export async function updateSource(
     title?: string | undefined;
     selected?: boolean | undefined;
     renamed?: boolean | undefined;
+    metadata?: SourceMetadata | undefined;
   },
 ): Promise<Source | undefined> {
   const [row] = await db

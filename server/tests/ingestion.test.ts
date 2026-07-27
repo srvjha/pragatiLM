@@ -96,6 +96,22 @@ describe("full ingestion pipeline", () => {
     await deleteBySource(sourceId);
   });
 
+  it("stores the metadata the extractor produced", async () => {
+    // Every extractor has always returned metadata and the pipeline never
+    // wrote it, so the column held `{}` for every source in the product. The
+    // symptom was two features quietly not working: the PDF viewer sized
+    // itself from a page count of zero, and a YouTube source rendered as a
+    // transcript with no video, because the id needed to embed the player was
+    // computed at ingestion and thrown away.
+    const sourceId = await addSource("PDF", "handbook.pdf", fixture("handbook-20p.pdf"));
+    await runIngestion(sourceId);
+
+    const source = await findSourceById(sourceId);
+    expect(source?.metadata.pageCount).toBe(20);
+
+    await deleteBySource(sourceId);
+  });
+
   it("stamps the embedding model and dimension on every chunk, per FR-3.6", async () => {
     const sourceId = await addSource("TEXT", "notes.md", fixture("notes.md"));
     await runIngestion(sourceId);
