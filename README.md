@@ -138,7 +138,7 @@ Not supported, by design: OCR of scanned PDFs, and transcription of videos with 
 
 ## Dashboard
 
-`/app/dashboard` reports what is in the account and how well it is answering, scoped to the signed in user. The second group is the one worth acting on: citation coverage says whether answers are staying grounded, a climbing refusal rate says the corpus does not cover the questions being asked, and a median correction round above zero points at chunking or retrieval rather than the loop earning its keep.
+`/dashboard` reports what is in the account and how well it is answering, scoped to the signed in user. The second group is the one worth acting on: citation coverage says whether answers are staying grounded, a climbing refusal rate says the corpus does not cover the questions being asked, and a median correction round above zero points at chunking or retrieval rather than the loop earning its keep.
 
 ## Known limitations
 

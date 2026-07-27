@@ -69,11 +69,11 @@ export function AccountMenu() {
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => router.push("/app")}>
+        <DropdownMenuItem onClick={() => router.push("/notebooks")}>
           <NotebookPen className="size-3.5" />
           Your notebooks
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push("/app/dashboard")}>
+        <DropdownMenuItem onClick={() => router.push("/dashboard")}>
           <BarChart3 className="size-3.5" />
           Dashboard
         </DropdownMenuItem>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Wordmark } from "@/components/brand/wordmark";
 import { useSession } from "@/lib/auth-client";
 import { AccountMenu } from "@/components/auth/account-menu";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -67,7 +68,9 @@ export function SiteHeader() {
 
         {/* ml-auto on both this and the nav meant the nav never actually
             pushed right on a narrow window; the gap belongs here instead. */}
-        <div className="ml-auto flex items-center gap-2 sm:ml-8">
+        <div className="ml-auto flex items-center gap-1 sm:ml-8 sm:gap-2">
+          <ThemeToggle className="size-8" />
+
           {isPending && (
             <div
               className="bg-muted h-7 w-24 animate-pulse rounded-md"
@@ -80,7 +83,7 @@ export function SiteHeader() {
               <Button
                 size="sm"
                 nativeButton={false}
-                render={<Link href="/app">Open your notebooks</Link>}
+                render={<Link href="/notebooks">Open your notebooks</Link>}
               />
               <AccountMenu />
             </>

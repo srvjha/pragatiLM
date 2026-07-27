@@ -63,7 +63,7 @@ export function NotebookSwitcher({ notebooks }: Props) {
                   key={notebook.id}
                   value={notebook.name}
                   onSelect={() => {
-                    router.push(`/app/${notebook.id}`);
+                    router.push(`/notebooks/${notebook.id}`);
                     setSwitcherOpen(false);
                   }}
                 >

@@ -105,7 +105,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       return;
     }
 
-    router.push("/app");
+    router.push("/notebooks");
     router.refresh();
   }
 
@@ -116,7 +116,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
    *
    * Both callback URLs are absolute, and that is the whole point. Better Auth
    * resolves a relative path against its own baseURL, which is the API, so
-   * "/app" sends the browser to the API's /app and lands on a JSON 404 after an
+   * "/notebooks" sends the browser to the API's /app and lands on a JSON 404 after an
    * otherwise successful sign in. The web app's own origin is what we want, and
    * the browser is the thing that knows it.
    *

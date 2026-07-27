@@ -20,8 +20,8 @@ const columns = [
   {
     heading: "Your work",
     links: [
-      { label: "Your notebooks", href: "/app" },
-      { label: "Dashboard", href: "/app/dashboard" },
+      { label: "Your notebooks", href: "/notebooks" },
+      { label: "Dashboard", href: "/dashboard" },
     ],
   },
   {

@@ -1,8 +1,8 @@
 "use client";
 
-import { useTheme } from "next-themes";
-import { ChevronsUpDown, Menu, Moon, Search, Sun } from "lucide-react";
+import { ChevronsUpDown, Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Tooltip,
   TooltipContent,
@@ -27,7 +27,6 @@ import { useUiStore } from "@/stores/ui-store";
  */
 export function TopBar({ notebookId }: { notebookId?: string }) {
   const { toggleRail, setSwitcherOpen, railOpen } = useUiStore();
-  const { resolvedTheme, setTheme } = useTheme();
   const { data: notebooks } = useNotebooks();
 
   const current = notebooks?.find((notebook) => notebook.id === notebookId);
@@ -52,7 +51,7 @@ export function TopBar({ notebookId }: { notebookId?: string }) {
         <TooltipContent>Notebooks</TooltipContent>
       </Tooltip>
 
-      <Wordmark href="/app" size="md" />
+      <Wordmark href="/notebooks" size="md" />
 
       {current && (
         <>
@@ -125,29 +124,7 @@ export function TopBar({ notebookId }: { notebookId?: string }) {
           <TooltipContent>Search notebooks</TooltipContent>
         </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Toggle theme"
-                onClick={() =>
-                  setTheme(resolvedTheme === "dark" ? "light" : "dark")
-                }
-              >
-                {/* Both icons render and CSS picks one, so there is no hydration
-                    mismatch to guard against with a mounted flag. */}
-                <Moon className="size-4 dark:hidden" />
-                <Sun className="hidden size-4 dark:block" />
-              </Button>
-            }
-          />
-          <TooltipContent>
-            <span className="hidden dark:inline">Switch to light</span>
-            <span className="dark:hidden">Switch to dark</span>
-          </TooltipContent>
-        </Tooltip>
+        <ThemeToggle />
 
         <AccountMenu />
       </div>

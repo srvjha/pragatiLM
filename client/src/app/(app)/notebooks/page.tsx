@@ -45,7 +45,7 @@ export default function AppHome() {
   function start(name: string, templateId?: string) {
     setStartingTemplate(templateId ?? null);
     create.mutate(name, {
-      onSuccess: (created) => router.push(`/app/${created.id}`),
+      onSuccess: (created) => router.push(`/notebooks/${created.id}`),
       onSettled: () => setStartingTemplate(null),
     });
   }
@@ -237,7 +237,7 @@ function NotebookCard({ notebook }: { notebook: NotebookListItemDto }) {
           <span className="line-clamp-2">{notebook.name}</span>
         ) : (
           <Link
-            href={`/app/${notebook.id}`}
+            href={`/notebooks/${notebook.id}`}
             // The overlay is what makes the card clickable without nesting a
             // second control inside the link.
             className="line-clamp-2 outline-none after:absolute after:inset-0 after:rounded-xl"

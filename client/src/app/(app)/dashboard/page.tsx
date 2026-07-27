@@ -72,7 +72,7 @@ export default function DashboardPage() {
             nativeButton={false}
             className="text-muted-foreground -ml-2.5 mb-4"
             render={
-              <Link href="/app">
+              <Link href="/notebooks">
                 <ArrowLeft />
                 Notebooks
               </Link>
@@ -172,7 +172,7 @@ export default function DashboardPage() {
               {data.answers.questions === 0 ? (
                 <Waiting>
                   No questions asked yet. Ask one in{" "}
-                  <TextLink href="/app">a notebook</TextLink> and citation
+                  <TextLink href="/notebooks">a notebook</TextLink> and citation
                   coverage, refusals and correction rounds appear here.
                 </Waiting>
               ) : (
@@ -371,7 +371,7 @@ function FirstRun() {
         className="mt-7"
         nativeButton={false}
         render={
-          <Link href="/app">
+          <Link href="/notebooks">
             Create your first notebook
             <ArrowRight className="transition-transform duration-200 group-hover/button:translate-x-0.5 motion-reduce:transition-none" />
           </Link>
