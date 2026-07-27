@@ -174,6 +174,38 @@ export async function generateRoadmap(
   return modules;
 }
 
+/**
+ * Records that a roadmap is being built, before the job is queued.
+ *
+ * Nothing wrote a row until generation had finished, so for the entire minute
+ * it takes there was no roadmap to find: the panel asked, got nothing back and
+ * showed its "no roadmap yet" empty state, which is indistinguishable from
+ * never having pressed the button. The progress the worker reports had nowhere
+ * to go either, since an update matches no rows when there is no row.
+ *
+ * The old one goes here rather than at the end. Replacing it only on success
+ * would leave the previous roadmap on screen while a new one is being built,
+ * which reads as the button having done nothing at all.
+ */
+export async function startRoadmap(
+  notebookId: string,
+  level: RoadmapLevel,
+  goal: string | undefined,
+  sourceIds: string[] = [],
+): Promise<void> {
+  await db.delete(roadmaps).where(eq(roadmaps.notebookId, notebookId));
+  await db.insert(roadmaps).values({
+    notebookId,
+    level,
+    ...(goal ? { goal } : {}),
+    sourceIds,
+    modules: [],
+    status: "QUEUED",
+    statusStage: "Queued",
+    progress: 0,
+  });
+}
+
 export async function saveRoadmap(
   notebookId: string,
   level: RoadmapLevel,
@@ -181,8 +213,8 @@ export async function saveRoadmap(
   modules: RoadmapModule[],
   sourceIds: string[] = [],
 ): Promise<void> {
-  // One roadmap per notebook: regenerating replaces it rather than accumulating
-  // versions the user never asked to keep.
+  // The row already exists, written by startRoadmap so the panel had something
+  // to show while this ran. Replacing it keeps one roadmap per notebook.
   await db.delete(roadmaps).where(eq(roadmaps.notebookId, notebookId));
   await db.insert(roadmaps).values({
     notebookId,

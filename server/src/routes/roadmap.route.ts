@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "@/middleware/validate";
 import { requireNotebook } from "@/middleware/ownership";
-import { canGenerateRoadmap, findRoadmap } from "@/services/roadmap/roadmap.service";
+import { canGenerateRoadmap, findRoadmap, startRoadmap } from "@/services/roadmap/roadmap.service";
 import { badRequest } from "@/lib/errors";
 import { roadmapQueue } from "@/queues";
 
@@ -40,6 +40,10 @@ roadmapRouter.post("/", validate({ body: generateBody }), (req, res, next) => {
         );
       }
 
+      // Written before the job is queued, so the panel has something to find
+      // the moment it refetches. Enqueueing first would leave a window where a
+      // fast worker finished before the row existed.
+      await startRoadmap(notebookId, body.level, body.goal, body.sourceIds ?? []);
       await roadmapQueue.add("generate-roadmap", { notebookId, ...body }, { attempts: 1 });
       res.status(202).json({ data: { status: "QUEUED" } });
     })

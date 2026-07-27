@@ -2,13 +2,21 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Map, Pin, Plus, RotateCw } from "lucide-react";
+import {
+  AlertCircle,
+  CircleCheck,
+  Map,
+  Pin,
+  Plus,
+  RotateCw,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AddSourceDialog } from "@/components/sources/add-source-dialog";
 import { useSources } from "@/features/sources/hooks";
+import { useHealth } from "@/features/health/hooks";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -263,6 +271,29 @@ function Generating({
   stage: string | null;
   progress: number;
 }) {
+  // The queue is consumed by a separate process, so a roadmap can sit at
+  // QUEUED forever with nothing wrong and nothing to say. This is the same
+  // trap the source list already names.
+  const { data: health } = useHealth(true);
+  const stalled = health?.worker.alive === false;
+
+  if (stalled) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+        <AlertCircle className="text-stamp size-5" />
+        <p className="text-sm font-medium">Nothing is building this</p>
+        <p className="text-muted-foreground max-w-xs font-serif text-xs leading-relaxed">
+          The background worker is not running, so this will wait indefinitely.
+          Start it with{" "}
+          <code className="bg-muted rounded px-1 py-px font-mono text-[0.7rem]">
+            npm run dev
+          </code>{" "}
+          in the server directory and it picks up on its own.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
       <RotateCw className="text-muted-foreground size-5 motion-safe:animate-spin" />
