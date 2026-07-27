@@ -1,37 +1,80 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Wordmark } from "@/components/brand/wordmark";
 import { useSession } from "@/lib/auth-client";
 import { AccountMenu } from "@/components/auth/account-menu";
+import { cn } from "@/lib/utils";
+
+const links = [
+  { label: "How it works", href: "#how" },
+  { label: "Sources", href: "#sources" },
+  { label: "Refusals", href: "#refusal" },
+];
 
 /**
  * The marketing header. It knows whether you are signed in, because offering
  * "Sign in" to someone who already is would be the site failing to recognise
  * its own user.
+ *
+ * Over the hero it is transparent and part of the page; once the page has
+ * moved under it, it takes a ground and a hairline so the text scrolling
+ * beneath does not run into the navigation.
  */
 export function SiteHeader() {
   const { data: session, isPending } = useSession();
+  const [lifted, setLifted] = useState(false);
+
+  useEffect(() => {
+    // Passive, and reading a single scalar, so this costs nothing per frame.
+    function onScroll() {
+      setLifted(window.scrollY > 8);
+    }
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-transparent backdrop-blur-sm">
+    <header
+      className={cn(
+        "sticky top-0 z-50 border-b transition-[background-color,border-color,backdrop-filter] duration-300",
+        lifted
+          ? "bg-background/80 border-border backdrop-blur-md"
+          : "border-transparent bg-transparent",
+      )}
+    >
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-6">
         <Wordmark href="/" size="md" />
 
-        <nav className="text-muted-foreground ml-auto hidden items-center gap-6 text-sm sm:flex">
-          <Link href="#how" className="hover:text-foreground transition-colors">
-            How it works
-          </Link>
-          <Link
-            href="#sources"
-            className="hover:text-foreground transition-colors"
-          >
-            Sources
-          </Link>
+        <nav
+          aria-label="Sections"
+          className="text-muted-foreground ml-auto hidden items-center gap-7 text-sm sm:flex"
+        >
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="hover:text-foreground focus-visible:ring-ring relative rounded-sm py-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {link.label}
+            </Link>
+          ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2 sm:ml-6">
+        {/* ml-auto on both this and the nav meant the nav never actually
+            pushed right on a narrow window; the gap belongs here instead. */}
+        <div className="ml-auto flex items-center gap-2 sm:ml-8">
+          {isPending && (
+            <div
+              className="bg-muted h-7 w-24 animate-pulse rounded-md"
+              aria-hidden
+            />
+          )}
+
           {!isPending && session && (
             <>
               <Button

@@ -55,6 +55,14 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${bricolage.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* Sections fade in as they scroll into view, which needs JavaScript to
+            trigger. Without it they would sit at opacity zero forever, so the
+            animation is switched off entirely rather than left half applied. */}
+        <noscript>
+          <style>{`.reveal{opacity:1!important;transform:none!important}`}</style>
+        </noscript>
+      </head>
       <body className="flex min-h-full flex-col">
         <Providers>{children}</Providers>
       </body>

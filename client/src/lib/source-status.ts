@@ -28,10 +28,30 @@ export const dotLabel: Record<SourceDotState, string> = {
   failed: "Failed",
 };
 
+/**
+ * Four dots, in the product's own colours rather than borrowed traffic lights.
+ *
+ * Amber and emerald came from outside the palette and quietly broke its one
+ * rule: colour here is a claim about state, and yellow already means "the
+ * product matched something". A source part way through indexing had not
+ * matched anything, so it was wearing the highlighter for no reason.
+ *
+ * With no accent hue left in the palette, the difference has to be shape
+ * rather than colour: work in progress is a hollow ring, finished work is a
+ * filled dot. Two shades of the same grey would have been the distinction
+ * otherwise, which is exactly the sort of thing that reads fine beside its
+ * own legend and not at all in a list of twelve sources.
+ *
+ * Failed keeps the stamp, the one colour that already means refusal
+ * throughout. The marker is deliberately not used for ready, tempting as it
+ * is: a source that has finished indexing has not matched anything yet, and
+ * spending the highlighter on "finished" would weaken it everywhere it means
+ * "this is the passage".
+ */
 export const dotClass: Record<SourceDotState, string> = {
-  uploading: "bg-muted-foreground animate-pulse",
-  indexing: "bg-amber-500 animate-pulse",
-  ready: "bg-emerald-500",
+  uploading: "border border-muted-foreground/70 motion-safe:animate-pulse",
+  indexing: "border border-foreground/70 motion-safe:animate-pulse",
+  ready: "bg-foreground",
   failed: "bg-destructive",
 };
 

@@ -16,12 +16,20 @@
  *                       actually matched something: a cited span, the active
  *                       notebook, a hovered citation. Never decoration, and
  *                       never as a text colour, only as a fill with ink on top.
- *   ballpoint  #2C4BAF  primary action and links
  *   stamp      #B32D3B  refusal, failure, destructive. The colour appears when
  *                       the product declines to answer, so it means one thing.
  *
- * Reading the interface, colour is therefore a claim about state rather than a
- * mood: yellow means found, red means not found, blue means you can act.
+ * There is no accent hue. The primary action is simply ink on paper, and its
+ * inverse on a dark ground. There was a blue here, and it was the wrong kind
+ * of blue: at #2C4BAF it sits at hue 226, on the blue-violet boundary, which
+ * reads as navy while it is dark and turns periwinkle the moment the dark
+ * theme lightens it into a tint. Rather than hunt for a hue that survives
+ * that, the accent was removed. It was never carrying meaning the interface
+ * could not carry with weight and contrast instead.
+ *
+ * So exactly two colours remain, and both are claims rather than decoration:
+ * yellow means the product found and matched something, red means it refused.
+ * Everything else is paper, ink and the greys between them.
  */
 
 @theme inline {
@@ -87,8 +95,8 @@
   --card-foreground: #101318;
   --popover: #ffffff;
   --popover-foreground: #101318;
-  --primary: #2c4baf;
-  --primary-foreground: #ffffff;
+  --primary: #101318;
+  --primary-foreground: #f1f2f4;
   --secondary: #e4e6ea;
   --secondary-foreground: #101318;
   --muted: #e7e9ed;
@@ -98,7 +106,7 @@
   --destructive: #b32d3b;
   --border: #d4d8de;
   --input: #d4d8de;
-  --ring: #2c4baf;
+  --ring: #101318;
 
   --marker: #f2e85c;
   --marker-foreground: #101318;
@@ -106,7 +114,7 @@
   --stamp-foreground: #ffffff;
   --tether: #5a6472;
 
-  --chart-1: #2c4baf;
+  --chart-1: #101318;
   --chart-2: #5a6472;
   --chart-3: #b32d3b;
   --chart-4: #7d8798;
@@ -118,12 +126,12 @@
 
   --sidebar: #eaecef;
   --sidebar-foreground: #101318;
-  --sidebar-primary: #2c4baf;
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary: #101318;
+  --sidebar-primary-foreground: #f1f2f4;
   --sidebar-accent: #dfe2e7;
   --sidebar-accent-foreground: #101318;
   --sidebar-border: #d4d8de;
-  --sidebar-ring: #2c4baf;
+  --sidebar-ring: #101318;
 }
 
 .dark {
@@ -133,10 +141,11 @@
   --card-foreground: #e8eaed;
   --popover: #171b22;
   --popover-foreground: #e8eaed;
-  /* Ballpoint has to lift off a dark ground to stay legible, so the dark theme
-     uses a tint of it rather than the same ink. */
-  --primary: #8aa2f0;
-  --primary-foreground: #0b0e13;
+  /* The primary action inverts on a dark ground: paper on ink becomes ink on
+     paper. Nothing has to be tinted, which is the whole reason the accent is
+     gone, since tinting is what turned the old blue purple. */
+  --primary: #e8eaed;
+  --primary-foreground: #101318;
   --secondary: #222831;
   --secondary-foreground: #e8eaed;
   --muted: #1c212a;
@@ -146,7 +155,7 @@
   --destructive: #e0616e;
   --border: #2a313c;
   --input: #2a313c;
-  --ring: #8aa2f0;
+  --ring: #e8eaed;
 
   /* Slightly deeper on a dark ground, where the light value glares. Ink stays
      the text colour on top of it either way. */
@@ -156,7 +165,7 @@
   --stamp-foreground: #0b0e13;
   --tether: #97a1b0;
 
-  --chart-1: #8aa2f0;
+  --chart-1: #e8eaed;
   --chart-2: #97a1b0;
   --chart-3: #e0616e;
   --chart-4: #6b7686;
@@ -164,12 +173,12 @@
 
   --sidebar: #141820;
   --sidebar-foreground: #e8eaed;
-  --sidebar-primary: #8aa2f0;
-  --sidebar-primary-foreground: #0b0e13;
+  --sidebar-primary: #e8eaed;
+  --sidebar-primary-foreground: #101318;
   --sidebar-accent: #222831;
   --sidebar-accent-foreground: #e8eaed;
   --sidebar-border: #2a313c;
-  --sidebar-ring: #8aa2f0;
+  --sidebar-ring: #e8eaed;
 }
 
 @layer base {
@@ -241,8 +250,75 @@
   }
 }
 
+@layer components {
+  /*
+   * Entrance. Sections lift a little as they arrive rather than appearing all
+   * at once on load, which is what makes a long page read as paced instead of
+   * dumped. Only opacity and transform move, so the browser composites it and
+   * nothing reflows.
+   *
+   * `data-shown` is set by an observer. Anyone who has asked for less motion,
+   * and anyone without JavaScript, gets the finished state immediately: the
+   * animation is the decoration, the content is the point.
+   */
+  .reveal {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+    transition:
+      opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+    will-change: opacity, transform;
+  }
+
+  .reveal[data-shown="true"] {
+    opacity: 1;
+    transform: none;
+    will-change: auto;
+  }
+
+  /*
+   * The hairline that separates every band on the landing page. A flat border
+   * runs edge to edge and reads as a table rule; fading it out at both ends
+   * makes it read as a seam in paper, which is the material this design is
+   * about.
+   */
+  .seam {
+    border-top: 1px solid transparent;
+    border-image: linear-gradient(
+        to right,
+        transparent,
+        var(--border) 12%,
+        var(--border) 88%,
+        transparent
+      )
+      1;
+  }
+
+  /*
+   * Ruled paper, at the opacity of a memory of it. Used behind the hero only,
+   * where there is room for texture; anywhere denser it would compete with the
+   * content it sits under.
+   */
+  .ruled {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--border) 60%, transparent) 1px,
+      transparent 1px
+    );
+    background-size: 100% 2rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .marked-active {
     animation: none;
+  }
+
+  .reveal,
+  .reveal[data-shown="true"] {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }
