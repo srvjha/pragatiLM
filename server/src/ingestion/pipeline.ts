@@ -8,8 +8,12 @@ import { setSourceStatus } from "@/services/status.service";
 import { buildPoints, deleteBySource, upsertPoints } from "@/vector/chunk.vector-repository";
 import { enqueueIngest } from "@/queues";
 import { childLogger } from "@/lib/logger";
+import { devanagariRatio } from "@/lib/devanagari";
+import { hasLlmCredentials } from "@/providers/llm";
+import { translateTexts, TRANSLATED_ENGLISH } from "@/services/captions.service";
 import type { SiblingSource } from "@/ingestion/extractors";
 import type { Source } from "@/db/schema";
+import type { Chunk } from "@/services/rag/chunker/types";
 
 const log = childLogger("ingest");
 
@@ -81,6 +85,8 @@ export async function runIngestion(sourceId: string, reindex = false): Promise<I
     throw new ExtractionError("Nothing could be indexed from this source.");
   }
 
+  const translated = await translateForSearch(source, chunks);
+
   const provider = embeddingProvider();
 
   await setSourceStatus({
@@ -95,7 +101,7 @@ export async function runIngestion(sourceId: string, reindex = false): Promise<I
   const rows = await replaceChunksForSource({
     sourceId: source.id,
     notebookId: source.notebookId,
-    chunks,
+    chunks: translated,
     embeddingModel: provider.model,
     embeddingDim: provider.dimensions,
   });
@@ -123,6 +129,63 @@ export async function runIngestion(sourceId: string, reindex = false): Promise<I
 
   log.info({ sourceId: source.id, chunks: rows.length }, "source indexed");
   return { sourceId: source.id, chunkCount: rows.length, siblingCount: 0 };
+}
+
+/**
+ * Below this the transcript is English with the odd Hindi phrase in it, and
+ * translating the whole thing would be worse than leaving it alone.
+ */
+const TRANSLATE_ABOVE = 0.4;
+
+/**
+ * Translates a Devanagari transcript before it is indexed.
+ *
+ * A question in English against a Devanagari corpus does not retrieve badly,
+ * it does not retrieve at all. The keyword channel is looking for a string
+ * that is not present in any form, and the vector channel is comparing an
+ * English question to Devanagari spellings. On one 33 chunk video, "API
+ * gateway" appeared once as एपीआई गेटवे and zero times in Latin script, so the
+ * search had nothing to find and the product refused a question the video
+ * spends four minutes answering.
+ *
+ * Translating after chunking rather than before is the whole trick: the
+ * locators are already fixed by then, so a citation still opens the exact
+ * second it always did, and only the text being embedded changes.
+ *
+ * The cost is honest and worth stating: what gets stored, and therefore what a
+ * citation quotes, is a machine translation rather than the verbatim caption.
+ * The original is not lost — the viewer's language switch fetches the Hindi
+ * track back from YouTube, and Hinglish is derived from that — but the quoted
+ * snippet is a reading of the source rather than the source.
+ */
+async function translateForSearch(source: Source, chunks: Chunk[]): Promise<Chunk[]> {
+  if (!hasLlmCredentials()) return chunks;
+
+  const sample = chunks
+    .slice(0, 8)
+    .map((chunk) => chunk.text)
+    .join(" ");
+
+  if (devanagariRatio(sample) < TRANSLATE_ABOVE) return chunks;
+
+  try {
+    const english = await translateTexts(chunks.map((chunk) => chunk.text));
+
+    // Recorded so the viewer opens on the translation and marks it as one,
+    // and so the language switch offers the Hindi track to go back to.
+    await updateSource(source.notebookId, source.id, {
+      metadata: { ...source.metadata, captionLanguage: TRANSLATED_ENGLISH },
+    });
+
+    log.info({ sourceId: source.id, chunks: chunks.length }, "indexed the English translation");
+
+    return chunks.map((chunk, index) => ({ ...chunk, text: english[index] ?? chunk.text }));
+  } catch (error) {
+    // A failed translation must not fail the source. Indexing the Devanagari
+    // is worse for an English question and still better than no source.
+    log.warn({ err: error, sourceId: source.id }, "translation failed, indexing as extracted");
+    return chunks;
+  }
 }
 
 async function extract(source: Source) {

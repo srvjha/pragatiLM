@@ -312,3 +312,19 @@ export function toLatin(text: string): string {
 export function hasDevanagari(text: string): boolean {
   return /[ऀ-ॿ]/.test(text);
 }
+
+/**
+ * How much of the text is Devanagari, ignoring spaces and punctuation.
+ *
+ * A single character is enough to be worth romanising a line, which is what
+ * `hasDevanagari` answers, and nowhere near enough to decide that a whole
+ * transcript needs translating before it can be searched. An English talk that
+ * quotes one Hindi phrase would otherwise be translated in full.
+ */
+export function devanagariRatio(text: string): number {
+  const letters = text.replace(/[\s\d\p{P}\p{S}]/gu, "");
+  if (letters.length === 0) return 0;
+
+  const devanagari = letters.match(/[ऀ-ॿ]/g)?.length ?? 0;
+  return devanagari / letters.length;
+}

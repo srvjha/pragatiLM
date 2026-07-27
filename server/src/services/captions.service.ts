@@ -96,33 +96,60 @@ export function offeredTracks(source: Source, sample = ""): OfferedTrack[] {
   // re-index. The script is right there in the text, so it is read from there.
   const devanagari = hasDevanagari(sample);
 
-  const offered: OfferedTrack[] = native.map((track) => ({
-    code: track.code,
-    label: labelFor(track),
-    kind: "native" as const,
-  }));
+  const indexed = indexedTrack(source);
+  const indexedIsDerived = indexed === TRANSLATED_ENGLISH || indexed === HINGLISH;
 
-  if (offered.length === 0) {
-    // One synthetic entry standing for whatever was indexed, so the derived
-    // tracks below have something to sit beside and switch back to.
-    offered.push({
-      code: indexedTrack(source),
+  /**
+   * Keyed by code, because these come from three places that can name the same
+   * track. A source with no recorded caption tracks whose indexed text is the
+   * translation used to get one synthetic entry and one derived entry, both
+   * called en-x-mt, which React rejected as a duplicate key and which would
+   * have rendered the same language twice in the switch had it not.
+   */
+  const offered = new Map<string, OfferedTrack>();
+
+  for (const track of native) {
+    offered.set(track.code, {
+      code: track.code,
+      label: labelFor(track),
+      kind: "native",
+    });
+  }
+
+  // One synthetic entry standing for whatever was indexed, so the derived
+  // tracks below have something to sit beside and switch back to. Skipped when
+  // the indexed text is itself derived, since the branches below name it far
+  // more accurately than "Original" would.
+  if (offered.size === 0 && !indexedIsDerived) {
+    offered.set(indexed, {
+      code: indexed,
       label: devanagari ? "हिन्दी" : "Original",
       kind: "native",
     });
   }
 
-  const hindi = devanagari || native.some((track) => isHindi(track.code));
-  if (hindi) {
-    offered.push({ code: HINGLISH, label: "Hinglish", kind: "romanized" });
+  if (devanagari || native.some((track) => isHindi(track.code))) {
+    offered.set(HINGLISH, { code: HINGLISH, label: "Hinglish", kind: "romanized" });
   }
 
-  // No English track, and the transcript is not already in Latin script.
-  if (!native.some((track) => isEnglish(track.code)) && devanagari) {
-    offered.push({ code: TRANSLATED_ENGLISH, label: "English", kind: "translated" });
+  // A Devanagari transcript is translated before it is indexed, so for those
+  // sources the translation is not an extra on the side, it is the track the
+  // viewer opens on. Without this it would not appear in its own switch: the
+  // sample it is judged from is by then already English, so nothing would ask
+  // for a translation and the current track would have no entry to mark.
+  const wantsEnglish =
+    indexed === TRANSLATED_ENGLISH ||
+    (devanagari && !native.some((track) => isEnglish(track.code)));
+
+  if (wantsEnglish) {
+    offered.set(TRANSLATED_ENGLISH, {
+      code: TRANSLATED_ENGLISH,
+      label: "English",
+      kind: "translated",
+    });
   }
 
-  return offered;
+  return [...offered.values()];
 }
 
 /**
@@ -298,6 +325,27 @@ const TRANSLATOR_SYSTEM = [
  * the timings no longer match the video, is not.
  */
 async function translateCues(cues: Cue[]): Promise<Cue[]> {
+  const texts = await translateTexts(cues.map((cue) => cue.text));
+  return cues.map((cue, index) => ({ ...cue, text: texts[index] ?? cue.text }));
+}
+
+/**
+ * Translates a list of passages into English, keeping them one to one.
+ *
+ * Exposed because indexing needs it as well as the viewer. A transcript whose
+ * captions are Devanagari cannot be searched with an English question — not
+ * approximately, but at all, since neither the keyword channel nor the vector
+ * space has anything to match — so the ingestion pipeline translates before it
+ * embeds. The two callers need exactly the same guarantee, which is that entry
+ * n out is entry n in, said in English.
+ */
+export async function translateTexts(input: string[]): Promise<string[]> {
+  const cues: Cue[] = input.map((text) => ({ startSec: 0, endSec: 0, text }));
+  const out = await translateCueTexts(cues);
+  return out.map((cue) => cue.text);
+}
+
+async function translateCueTexts(cues: Cue[]): Promise<Cue[]> {
   if (!hasLlmCredentials()) {
     throw new CaptionError("Translation needs a model, and no API key is configured.");
   }
