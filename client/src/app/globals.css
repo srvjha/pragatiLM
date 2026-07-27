@@ -296,6 +296,75 @@
   }
 
   /*
+   * The sign-in backdrop: a page being read and marked.
+   *
+   * The product's whole claim is that it finds the passage and marks it, so
+   * the background is that happening rather than an abstract gradient. A
+   * highlight wipes across a line, holds long enough to be read as deliberate,
+   * and fades, while its locator fades in beside it. Nothing here is decorative
+   * in the sense of meaning nothing: it is the interface's own gesture, at the
+   * scale of wallpaper.
+   *
+   * Only transform and opacity, so the whole thing composites and the sign-in
+   * form never competes with it for the main thread.
+   */
+  .sweep {
+    transform: scaleX(0);
+    transform-origin: left center;
+    animation: mark-sweep 16s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+    animation-delay: var(--sweep-delay, 0s);
+  }
+
+  @keyframes mark-sweep {
+    0%,
+    4% {
+      transform: scaleX(0);
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    16%,
+    44% {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+    56% {
+      transform: scaleX(1);
+      opacity: 0;
+    }
+    57%,
+    100% {
+      transform: scaleX(0);
+      opacity: 0;
+    }
+  }
+
+  .sweep-label {
+    opacity: 0;
+    animation: mark-label 16s ease-in-out infinite;
+    animation-delay: var(--sweep-delay, 0s);
+  }
+
+  @keyframes mark-label {
+    0%,
+    14% {
+      opacity: 0;
+      transform: translateX(-2px);
+    }
+    22%,
+    44% {
+      opacity: 1;
+      transform: none;
+    }
+    54%,
+    100% {
+      opacity: 0;
+      transform: none;
+    }
+  }
+
+  /*
    * Ruled paper, at the opacity of a memory of it. Used behind the hero only,
    * where there is room for texture; anywhere denser it would compete with the
    * content it sits under.
@@ -320,5 +389,17 @@
     opacity: 1;
     transform: none;
     transition: none;
+  }
+
+  /* The marks stay marked. The point they make does not depend on the motion,
+     so the still frame is the finished state rather than a blank page. */
+  .sweep {
+    animation: none;
+    transform: scaleX(1);
+  }
+
+  .sweep-label {
+    animation: none;
+    opacity: 1;
   }
 }

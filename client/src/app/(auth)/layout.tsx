@@ -1,4 +1,6 @@
 import { Wordmark } from "@/components/brand/wordmark";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { ReadingBackdrop } from "@/components/auth/reading-backdrop";
 
 /**
  * The form is the whole task, so it keeps a fixed, narrow column and never
@@ -15,16 +17,14 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative flex min-h-dvh flex-col">
-      {/* The same ruled ground as the landing hero, so arriving here reads as
-          the same surface rather than a separate application. */}
-      <div
-        className="ruled pointer-events-none absolute inset-x-0 top-0 h-[26rem] opacity-40 [mask-image:linear-gradient(to_bottom,black,transparent)]"
-        aria-hidden
-      />
+    <div className="relative flex min-h-dvh flex-col overflow-hidden">
+      <ReadingBackdrop />
 
       <header className="relative flex h-16 shrink-0 items-center px-6 lg:px-10">
         <Wordmark size="md" />
+        {/* Someone who has never signed in is stuck with whatever their system
+            chose, on the one page that has to feel like the product. */}
+        <ThemeToggle className="ml-auto size-8" />
       </header>
 
       <main className="relative flex flex-1 items-start justify-center px-6 pt-4 pb-20 sm:items-center sm:pt-0 lg:px-10">
@@ -32,7 +32,10 @@ export default function AuthLayout({
           {/* The card is what stops a short form reading as an unfinished page
               on a wide screen. It lifts off the paper ground rather than
               tinting it, which is the same rule every other surface follows. */}
-          <div className="bg-card w-full max-w-sm justify-self-center rounded-xl border p-6 shadow-sm sm:p-8">
+          {/* Opaque and lifted, because it now sits over a moving ground: a
+              translucent card would let a highlight sweep under the password
+              field, which is the one place on the site that must be still. */}
+          <div className="bg-card w-full max-w-sm justify-self-center rounded-xl border p-6 shadow-xl sm:p-8">
             {children}
           </div>
 
