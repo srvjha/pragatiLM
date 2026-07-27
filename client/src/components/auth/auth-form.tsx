@@ -115,10 +115,10 @@ export function AuthForm({ mode }: { mode: Mode }) {
    * Starts an OAuth round trip.
    *
    * Both callback URLs are absolute, and that is the whole point. Better Auth
-   * resolves a relative path against its own baseURL, which is the API, so
-   * "/notebooks" sends the browser to the API's /app and lands on a JSON 404 after an
-   * otherwise successful sign in. The web app's own origin is what we want, and
-   * the browser is the thing that knows it.
+   * resolves a relative path against its own baseURL, which is the API, so a
+   * bare "/notebooks" sends the browser to the API's origin and lands on a
+   * JSON 404 after an otherwise successful sign in. The web app's own origin
+   * is what we want, and the browser is the thing that knows it.
    *
    * The origin has to be listed in the server's WEB_ORIGIN for Better Auth to
    * accept it, which is the same check that stops an open redirect.
@@ -126,7 +126,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
   function social(provider: Provider) {
     return signIn.social({
       provider,
-      callbackURL: `${window.location.origin}/app`,
+      callbackURL: `${window.location.origin}/notebooks`,
       // Without this, a refused or cancelled sign in lands on an API error page
       // rather than back here with something to read.
       errorCallbackURL: `${window.location.origin}/sign-in?error=oauth`,
