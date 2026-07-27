@@ -14,18 +14,15 @@ There is no root `package.json`, no workspace, no shared lockfile and no cross p
 Three terminals. The server must be up before the client is useful.
 
 ```bash
-# 1. backing services and the API (from server/)
+# 1. backing services, the API and the queue worker (from server/)
 cd server
 docker compose up -d
 cp .env.example .env
 npm install
 npm run db:migrate
-npm run dev            # http://localhost:4000
+npm run dev            # API on :4000, worker alongside it
 
-# 2. queue worker, second terminal, still in server/
-npm run dev:worker
-
-# 3. client, third terminal
+# 2. client, second terminal
 cd ../client
 cp .env.example .env.local
 npm install
@@ -34,7 +31,7 @@ npm run dev            # http://localhost:3000
 
 Open `http://localhost:3000` and create an account. Email and password needs no third party credential, so the product is usable the moment the database is up.
 
-Check `http://localhost:4000/api/health`. It reports reachability for Postgres, Redis and Qdrant separately, and returns 503 if any of them is down.
+Check `http://localhost:4000/api/health`. It reports reachability for Postgres, Redis and Qdrant separately, and returns 503 if any of them is down. It also reports whether a queue worker is attached, which is the one failure that looks like nothing at all: without a worker a source is accepted, queued, and never indexed, so the row simply spins. `npm run dev` starts both halves for that reason, and `npm run dev:api` and `npm run dev:worker` still run them separately.
 
 **The one key worth adding** is `OPENAI_API_KEY` in `server/.env`. Without it, set `EMBEDDING_PROVIDER=fake` and everything still runs end to end — uploads, indexing, live status, the viewer — but retrieval returns meaningless results, because the vectors carry no semantics.
 

@@ -3,7 +3,9 @@ import tseslint from "typescript-eslint";
 import prettier from "eslint-config-prettier";
 
 export default tseslint.config(
-  { ignores: ["dist/**", "node_modules/**"] },
+  // scripts/ holds plain Node launchers that run before anything is built, so
+  // they sit outside the TypeScript project the type-aware rules need.
+  { ignores: ["dist/**", "node_modules/**", "scripts/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {

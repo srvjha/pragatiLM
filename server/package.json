@@ -5,7 +5,8 @@
   "type": "module",
   "description": "pragatiLM backend: API and queue workers",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "tsx watch src/index.ts",
     "dev:worker": "tsx watch src/worker.ts",
     "build": "tsup",
     "start": "node dist/index.js",
