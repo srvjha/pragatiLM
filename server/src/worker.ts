@@ -12,6 +12,7 @@ import { createCleanupWorker } from "@/workers/cleanup.worker";
 import { createChatWorker } from "@/workers/chat.worker";
 import { createRoadmapWorker } from "@/workers/roadmap.worker";
 import { createPodcastWorker } from "@/workers/podcast.worker";
+import { startHeartbeat } from "@/lib/worker-heartbeat";
 
 const log = logger.child({ process: "worker" });
 
@@ -49,6 +50,10 @@ for (const name of env.WORKER_QUEUES) {
 
 log.info({ queues: env.WORKER_QUEUES, active: workers.length }, "worker started");
 
+// So the API can tell "indexing is slow" from "nobody is consuming the queue",
+// which are the same spinner from the outside.
+const stopHeartbeat = startHeartbeat(env.WORKER_QUEUES);
+
 let shuttingDown = false;
 
 /**
@@ -61,6 +66,10 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   shuttingDown = true;
 
   log.info({ signal }, "worker draining, waiting for in flight jobs");
+
+  // Stopped first, so a worker that is draining stops advertising itself and
+  // the key expires rather than being refreshed on the way out.
+  stopHeartbeat();
 
   const forceExit = setTimeout(() => {
     log.error("forced exit, jobs still running will be requeued as stalled");

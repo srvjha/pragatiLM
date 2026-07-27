@@ -172,6 +172,12 @@ export type HealthReport = {
   status: "ok" | "degraded";
   uptimeSec: number;
   services: Record<"postgres" | "redis" | "qdrant", ServiceHealth>;
+  /**
+   * Whether anything is consuming the queues. Separate from the services
+   * because it is not an outage: the API is healthy with no worker attached,
+   * it simply cannot finish anything it is asked to do.
+   */
+  worker: { alive: boolean; queues: string[] };
 };
 
 /** Everything the analytics dashboard renders, scoped to one user. */

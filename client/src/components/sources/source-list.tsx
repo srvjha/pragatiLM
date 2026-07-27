@@ -29,6 +29,7 @@ import {
   useToggleSourceSelected,
 } from "@/features/sources/hooks";
 import { useSourceEvents } from "@/features/sources/use-source-events";
+import { useHealth } from "@/features/health/hooks";
 import { useUiStore } from "@/stores/ui-store";
 import type { SourceDto } from "@/types/api";
 
@@ -49,6 +50,14 @@ export function SourceList({ notebookId }: { notebookId: string }) {
   const total = sources?.length ?? 0;
   const selectedCount = (sources ?? []).filter((row) => row.selected).length;
   const allSelected = total > 0 && selectedCount === total;
+
+  // Only asked while something is actually waiting, so a healthy notebook
+  // never pays for the check.
+  const waiting = (sources ?? []).some(
+    (row) => row.status === "QUEUED" || row.status === "UPLOADING",
+  );
+  const { data: health } = useHealth(waiting);
+  const stalled = waiting && health?.worker.alive === false;
 
   /**
    * One mutation per row rather than a bulk endpoint, because the server has
@@ -117,6 +126,28 @@ export function SourceList({ notebookId }: { notebookId: string }) {
           />
         </div>
       </div>
+
+      {/* The API and the worker are separate processes and only the worker
+          moves a source past QUEUED, so forgetting to start it looks exactly
+          like a slow extractor: the row spins forever with no error, because
+          nothing failed. This is the one state the product could not explain
+          about itself. */}
+      {stalled && (
+        <div className="border-b px-3 py-2.5">
+          <p className="text-stamp flex items-center gap-1.5 text-xs font-medium">
+            <AlertCircle className="size-3.5 shrink-0" />
+            Nothing is indexing these
+          </p>
+          <p className="text-muted-foreground mt-1 font-serif text-xs leading-relaxed">
+            The background worker is not running, so queued sources will wait
+            indefinitely. Start it with{" "}
+            <code className="bg-muted rounded px-1 py-px font-mono text-[0.7rem]">
+              npm run dev:worker
+            </code>{" "}
+            in the server directory; they pick up on their own once it is up.
+          </p>
+        </div>
+      )}
 
       {/* Silence here would be the notebook quietly refusing every question
           for a reason nobody could see. */}
