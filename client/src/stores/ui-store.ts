@@ -24,6 +24,15 @@ type UiState = {
    * that page's text layer.
    */
   viewerSnippet: string | null;
+  /**
+   * Whether the right column is given most of the width.
+   *
+   * A transcript reads fine in a third of the screen and a video does not: at
+   * that width the player is a thumbnail, which is no way to watch anything.
+   * The column is draggable, but a video is exactly the case where the reader
+   * should not have to discover that, so there is a button for it.
+   */
+  viewerWide: boolean;
 
   selectedSourceIds: string[];
 
@@ -50,6 +59,7 @@ type UiState = {
     } | null,
   ) => void;
   closeViewer: () => void;
+  setViewerWide: (wide: boolean) => void;
   setSelectedSources: (ids: string[]) => void;
 };
 
@@ -61,6 +71,7 @@ export const useUiStore = create<UiState>((set) => ({
   viewerSourceId: null,
   viewerLocator: null,
   viewerSnippet: null,
+  viewerWide: false,
   selectedSourceIds: [],
 
   setActiveNotebook: (id) =>
@@ -103,7 +114,16 @@ export const useUiStore = create<UiState>((set) => ({
     }),
 
   closeViewer: () =>
-    set({ viewerOpen: false, viewerLocator: null, viewerSnippet: null }),
+    set({
+      viewerOpen: false,
+      viewerLocator: null,
+      viewerSnippet: null,
+      // Closing the source gives the width back to the chat, or the next thing
+      // opened inherits a layout chosen for a video it is not.
+      viewerWide: false,
+    }),
+
+  setViewerWide: (viewerWide) => set({ viewerWide }),
 
   setSelectedSources: (selectedSourceIds) => set({ selectedSourceIds }),
 }));

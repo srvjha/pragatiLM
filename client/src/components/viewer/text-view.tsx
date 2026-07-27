@@ -22,12 +22,15 @@ export function TextView({
     mark.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [range]);
 
+  // Source text is material, so it is set in the reading face at a comfortable
+  // measure rather than in the interface grotesque edge to edge.
+  const body =
+    "mx-auto max-w-prose font-serif text-[0.95rem] leading-relaxed break-words whitespace-pre-wrap";
+
   if (!range) {
     return (
-      <div className="h-full overflow-y-auto p-4">
-        <pre className="font-sans text-sm break-words whitespace-pre-wrap">
-          {text}
-        </pre>
+      <div className="h-full overflow-y-auto px-5 py-4">
+        <pre className={body}>{text}</pre>
       </div>
     );
   }
@@ -36,10 +39,13 @@ export function TextView({
   const end = Math.max(start, Math.min(range.endChar, text.length));
 
   return (
-    <div className="h-full overflow-y-auto p-4">
-      <pre className="font-sans text-sm break-words whitespace-pre-wrap">
+    <div className="h-full overflow-y-auto px-5 py-4">
+      <pre className={body}>
         {text.slice(0, start)}
-        <mark ref={mark} className="bg-amber-500/30 text-inherit">
+        {/* The same `marked` gesture the PDF and the transcript use. It was an
+            amber tint from outside the palette, which meant the one visual
+            idea the product is built on read differently in each viewer. */}
+        <mark ref={mark} className="marked marked-active">
           {text.slice(start, end)}
         </mark>
         {text.slice(end)}

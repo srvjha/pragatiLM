@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Group, Panel, Separator } from "react-resizable-panels";
+import { Group, Panel, Separator, usePanelRef } from "react-resizable-panels";
 import { AudioLines, Map, MessageSquare, PanelRight, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ChatPanel } from "@/components/chat/chat-panel";
@@ -37,6 +37,8 @@ export function NotebookWorkspace({ notebookId }: { notebookId: string }) {
   const setViewerOpen = useUiStore((state) => state.setViewerOpen);
   const viewerSourceId = useUiStore((state) => state.viewerSourceId);
   const closeViewer = useUiStore((state) => state.closeViewer);
+  const viewerWide = useUiStore((state) => state.viewerWide);
+  const materialRef = usePanelRef();
 
   const { data: sources } = useSources(notebookId);
   const canSplit = useMediaQuery("(min-width: 1280px)");
@@ -46,6 +48,13 @@ export function NotebookWorkspace({ notebookId }: { notebookId: string }) {
   useEffect(() => {
     setActiveNotebook(notebookId);
   }, [notebookId, setActiveNotebook]);
+
+  // Driven from the store rather than from a size prop, because the column is
+  // also draggable: re-rendering it at a fixed size would fight whatever width
+  // the reader had chosen by hand.
+  useEffect(() => {
+    materialRef.current?.resize(viewerWide ? "62" : "32");
+  }, [viewerWide, materialRef]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -133,8 +142,21 @@ export function NotebookWorkspace({ notebookId }: { notebookId: string }) {
           <Panel id="chat" minSize="35">
             {main}
           </Panel>
-          <Separator className="bg-border hover:bg-foreground/20 w-1 transition-colors" />
-          <Panel id="material" defaultSize="32" minSize="20">
+          {/* Wider than it looks: the visible line stays a hairline while the
+              grab area is comfortable, because a one-pixel drag target is a
+              feature only a mouse user with a steady hand can reach. */}
+          <Separator className="group/handle relative w-1 shrink-0 cursor-col-resize bg-transparent">
+            <span
+              aria-hidden
+              className="bg-border group-hover/handle:bg-primary/60 absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors"
+            />
+          </Separator>
+          <Panel
+            id="material"
+            panelRef={materialRef}
+            defaultSize="32"
+            minSize="20"
+          >
             {material}
           </Panel>
         </Group>
@@ -150,16 +172,22 @@ export function NotebookWorkspace({ notebookId }: { notebookId: string }) {
         {viewerOpen && (
           <>
             <div
-              className="fixed inset-0 z-40 bg-black/40"
+              className="motion-safe:animate-in motion-safe:fade-in fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]"
               onClick={closeViewer}
               aria-hidden
             />
-            <aside className="bg-background fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l shadow-xl">
-              <div className="flex shrink-0 items-center justify-end border-b px-2 py-1.5">
+            <aside
+              aria-label="Sources"
+              className="bg-background motion-safe:animate-in motion-safe:slide-in-from-right motion-safe:duration-200 fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l shadow-xl"
+            >
+              <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+                <h2 className="text-muted-foreground font-mono text-[0.65rem] tracking-[0.14em] uppercase">
+                  Sources
+                </h2>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7"
+                  className="ml-auto size-7"
                   aria-label="Close sources"
                   onClick={closeViewer}
                 >

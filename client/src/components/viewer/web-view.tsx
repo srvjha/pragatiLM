@@ -28,7 +28,7 @@ export function WebView({
 
     root.querySelectorAll("[data-cited]").forEach((element) => {
       element.removeAttribute("data-cited");
-      element.classList.remove("bg-amber-500/30", "rounded");
+      element.classList.remove("marked", "marked-active");
     });
 
     const blocks = root.querySelectorAll(
@@ -43,7 +43,7 @@ export function WebView({
       const blockEnd = offset + text.length;
       if (offset <= range.startChar && blockEnd >= range.startChar) {
         block.setAttribute("data-cited", "true");
-        block.classList.add("bg-amber-500/30", "rounded");
+        block.classList.add("marked", "marked-active");
         block.scrollIntoView({ block: "center", behavior: "smooth" });
         break;
       }
