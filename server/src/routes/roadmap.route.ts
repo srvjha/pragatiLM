@@ -11,6 +11,11 @@ export const roadmapRouter: Router = Router({ mergeParams: true });
 const generateBody = z.object({
   level: z.enum(["new", "some", "experienced"]),
   goal: z.string().trim().max(500).optional(),
+  /**
+   * Which sources to build from. Omitted or empty means every timed source,
+   * so an older client and a direct API call both keep working.
+   */
+  sourceIds: z.array(z.uuid()).max(50).optional(),
 });
 
 roadmapRouter.get("/", (req, res, next) => {

@@ -139,7 +139,12 @@ export type RoadmapDto = {
   level: RoadmapLevel;
   goal: string | null;
   modules: RoadmapModule[];
+  /** Which sources it was built from. Empty means every timed source. */
+  sourceIds: string[];
   status: "QUEUED" | "RUNNING" | "READY" | "FAILED";
+  /** What it is doing right now, and roughly how far in. */
+  statusStage: string | null;
+  progress: number;
   errorMessage: string | null;
   createdAt: string;
 };

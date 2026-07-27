@@ -10,15 +10,41 @@ import type { RoadmapLevel } from "@/db/schema";
 
 const log = childLogger("worker:roadmap");
 
-export type RoadmapJob = { notebookId: string; level: RoadmapLevel; goal?: string };
+export type RoadmapJob = {
+  notebookId: string;
+  level: RoadmapLevel;
+  goal?: string;
+  /** Empty means every timed source, which is the old implicit behaviour. */
+  sourceIds?: string[];
+};
 
 async function run(job: Job<RoadmapJob>): Promise<void> {
-  const { notebookId, level, goal } = job.data;
+  const { notebookId, level, goal, sourceIds = [] } = job.data;
 
-  await publish(channels.source(notebookId), { type: "roadmap.status", status: "RUNNING" });
+  /**
+   * Written to the row as well as pushed over the stream. The panel polls
+   * every few seconds and a reader who arrives mid-generation, or reloads,
+   * has no stream history to catch up on — without the row they would see a
+   * bare spinner with no idea how far in it was.
+   */
+  async function report(stage: string, progress: number): Promise<void> {
+    await db
+      .update(roadmaps)
+      .set({ status: "RUNNING", statusStage: stage, progress })
+      .where(eq(roadmaps.notebookId, notebookId));
 
-  const modules = await generateRoadmap(notebookId, level, goal);
-  await saveRoadmap(notebookId, level, goal, modules);
+    await publish(channels.source(notebookId), {
+      type: "roadmap.status",
+      status: "RUNNING",
+      stage,
+      progress,
+    });
+  }
+
+  await report("Starting", 5);
+
+  const modules = await generateRoadmap(notebookId, level, goal, sourceIds, report);
+  await saveRoadmap(notebookId, level, goal, modules, sourceIds);
 
   await publish(channels.source(notebookId), {
     type: "roadmap.status",

@@ -41,8 +41,15 @@ const LEVEL_GUIDANCE: Record<RoadmapLevel, string> = {
     "The learner is experienced. Keep the roadmap short, mark foundational material skippable and focus on what is specific to this material.",
 };
 
-/** Timed chunks only: a pin is a timestamp, so prose cannot support one. */
-async function timedChunks(notebookId: string) {
+/**
+ * The timed passages a roadmap can be built from.
+ *
+ * `sourceIds` narrows it to what the person picked. Empty means every timed
+ * source, which is what the roadmap always did implicitly: a notebook holding
+ * six lectures and one unrelated talk produced a roadmap that tried to order
+ * all seven into a single path, and there was no way to say otherwise.
+ */
+async function timedChunks(notebookId: string, sourceIds: string[] = []) {
   const rows = await db
     .select({
       id: chunks.id,
@@ -58,12 +65,23 @@ async function timedChunks(notebookId: string) {
         eq(chunks.notebookId, notebookId),
         inArray(sources.type, ["YOUTUBE", "VTT"]),
         eq(sources.status, "READY"),
+        ...(sourceIds.length > 0 ? [inArray(sources.id, sourceIds)] : []),
       ),
     )
     .orderBy(chunks.chunkIndex);
 
-  return rows.filter((row) => (row.locator).kind === "timed");
+  return rows.filter((row) => row.locator.kind === "timed");
 }
+
+/**
+ * Progress is reported as stages rather than as a measured percentage.
+ *
+ * Generation is one long model call with a gather before it and a verify
+ * after, so there is no fraction to measure honestly. Naming the stage at
+ * least answers the question someone staring at a spinner actually has, which
+ * is whether anything is happening and roughly how much is left.
+ */
+export type RoadmapProgress = (stage: string, progress: number) => Promise<void>;
 
 export async function canGenerateRoadmap(notebookId: string): Promise<boolean> {
   return (await timedChunks(notebookId)).length > 0;
@@ -72,9 +90,12 @@ export async function canGenerateRoadmap(notebookId: string): Promise<boolean> {
 export async function generateRoadmap(
   notebookId: string,
   level: RoadmapLevel,
-  goal?: string,
+  goal: string | undefined,
+  sourceIds: string[] = [],
+  onProgress: RoadmapProgress = () => Promise.resolve(),
 ): Promise<RoadmapModule[]> {
-  const rows = await timedChunks(notebookId);
+  await onProgress("Gathering the passages", 10);
+  const rows = await timedChunks(notebookId, sourceIds);
 
   if (rows.length === 0) {
     throw new Error("Add a video or transcript source before generating a roadmap.");
@@ -87,13 +108,14 @@ export async function generateRoadmap(
   // Passages are labelled with their own chunk id, which is how a pin becomes
   // verifiable: the model can only cite an id it was shown.
   const passages = rows
-    .map(
-      (row) =>
-        `id=${row.id} source="${row.sourceTitle}" ${describe(row.locator)}\n${row.text}`,
-    )
+    .map((row) => `id=${row.id} source="${row.sourceTitle}" ${describe(row.locator)}\n${row.text}`)
     .join("\n\n");
 
   const model = chatModel("chat", 0.2).withStructuredOutput(roadmapSchema, { name: "roadmap" });
+
+  // The long one. Everything either side of it is quick, so the bar sits here
+  // for most of the wait and the stage says why.
+  await onProgress(`Ordering the concepts in ${rows.length} passages`, 35);
 
   const result = await model.invoke([
     {
@@ -111,6 +133,8 @@ export async function generateRoadmap(
       content: goal ? `Goal: ${goal}\n\nPassages:\n${passages}` : `Passages:\n${passages}`,
     },
   ]);
+
+  await onProgress("Checking every step is pinned to a timestamp", 85);
 
   const byId = new Map(rows.map((row) => [row.id, row]));
   const modules: RoadmapModule[] = [];
@@ -155,6 +179,7 @@ export async function saveRoadmap(
   level: RoadmapLevel,
   goal: string | undefined,
   modules: RoadmapModule[],
+  sourceIds: string[] = [],
 ): Promise<void> {
   // One roadmap per notebook: regenerating replaces it rather than accumulating
   // versions the user never asked to keep.
@@ -164,7 +189,10 @@ export async function saveRoadmap(
     level,
     ...(goal ? { goal } : {}),
     modules,
+    sourceIds,
     status: "READY",
+    statusStage: null,
+    progress: 100,
   });
 }
 

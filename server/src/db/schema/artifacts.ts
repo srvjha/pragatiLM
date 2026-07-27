@@ -24,7 +24,19 @@ export const roadmaps = pgTable(
     level: roadmapLevelEnum("level").notNull(),
     goal: text("goal"),
     modules: jsonb("modules").$type<RoadmapModule[]>().notNull().default([]),
+    /**
+     * Which sources it was built from. Empty means every timed source in the
+     * notebook, which is what the roadmap always used to do implicitly.
+     */
+    sourceIds: jsonb("source_ids").$type<string[]>().notNull().default([]),
     status: artifactStatusEnum("status").notNull().default("QUEUED"),
+    /**
+     * Stage and progress, the same pair a source carries while it indexes.
+     * Generation is one long model call, so this reports which stage it is in
+     * rather than pretending to measure the call itself.
+     */
+    statusStage: text("status_stage"),
+    progress: integer("progress").notNull().default(0),
     errorMessage: text("error_message"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

@@ -13,10 +13,12 @@ export function generateRoadmap(
   notebookId: string,
   level: RoadmapLevel,
   goal?: string,
+  /** Empty means every timed source in the notebook. */
+  sourceIds: string[] = [],
 ): Promise<{ status: string }> {
   return apiFetch(`/notebooks/${notebookId}/roadmap`, {
     method: "POST",
-    body: JSON.stringify({ level, goal }),
+    body: JSON.stringify({ level, goal, sourceIds }),
   });
 }
 

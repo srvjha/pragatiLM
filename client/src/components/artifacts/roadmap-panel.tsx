@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Map, Pin, RotateCw } from "lucide-react";
+import { CircleCheck, Map, Pin, Plus, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AddSourceDialog } from "@/components/sources/add-source-dialog";
+import { useSources } from "@/features/sources/hooks";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -58,8 +61,15 @@ export function RoadmapPanel({ notebookId }: { notebookId: string }) {
   });
 
   const generate = useMutation({
-    mutationFn: ({ level, goal }: { level: Level; goal?: string }) =>
-      api.generateRoadmap(notebookId, level, goal),
+    mutationFn: ({
+      level,
+      goal,
+      sourceIds,
+    }: {
+      level: Level;
+      goal?: string;
+      sourceIds: string[];
+    }) => api.generateRoadmap(notebookId, level, goal, sourceIds),
     onSuccess: () => {
       toast.success("Building your roadmap...");
       void client.invalidateQueries({
@@ -99,9 +109,12 @@ export function RoadmapPanel({ notebookId }: { notebookId: string }) {
           </p>
         </div>
         <GenerateDialog
+          notebookId={notebookId}
           disabled={!canGenerate}
           pending={generate.isPending}
-          onGenerate={(level, goal) => generate.mutate({ level, goal })}
+          onGenerate={(level, goal, sourceIds) =>
+            generate.mutate({ level, goal, sourceIds })
+          }
         />
       </div>
     );
@@ -109,10 +122,7 @@ export function RoadmapPanel({ notebookId }: { notebookId: string }) {
 
   if (roadmap.status === "QUEUED" || roadmap.status === "RUNNING") {
     return (
-      <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 p-8 text-sm">
-        <RotateCw className="size-5 animate-spin" />
-        Finding the concepts and pinning them to timestamps...
-      </div>
+      <Generating stage={roadmap.statusStage} progress={roadmap.progress} />
     );
   }
 
@@ -123,9 +133,12 @@ export function RoadmapPanel({ notebookId }: { notebookId: string }) {
           {roadmap.errorMessage ?? "Generation failed."}
         </p>
         <GenerateDialog
+          notebookId={notebookId}
           disabled={!canGenerate}
           pending={generate.isPending}
-          onGenerate={(level, goal) => generate.mutate({ level, goal })}
+          onGenerate={(level, goal, sourceIds) =>
+            generate.mutate({ level, goal, sourceIds })
+          }
         />
       </div>
     );
@@ -136,10 +149,13 @@ export function RoadmapPanel({ notebookId }: { notebookId: string }) {
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold">Learning roadmap</h2>
         <GenerateDialog
+          notebookId={notebookId}
           disabled={!canGenerate}
           pending={generate.isPending}
           label="Regenerate"
-          onGenerate={(level, goal) => generate.mutate({ level, goal })}
+          onGenerate={(level, goal, sourceIds) =>
+            generate.mutate({ level, goal, sourceIds })
+          }
         />
       </div>
 
@@ -232,20 +248,102 @@ function ModuleStep({
   );
 }
 
+/**
+ * What it is doing, and roughly how far in.
+ *
+ * Generation is one long model call, so the bar reports the stage rather than
+ * a measured fraction and the stage says which one. That is the honest version
+ * of the question someone staring at a spinner is actually asking, which is
+ * whether anything is happening at all.
+ */
+function Generating({
+  stage,
+  progress,
+}: {
+  stage: string | null;
+  progress: number;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+      <RotateCw className="text-muted-foreground size-5 motion-safe:animate-spin" />
+
+      <div className="w-full max-w-xs">
+        <div className="mb-2 flex items-baseline justify-between gap-3">
+          <p className="text-sm">
+            {stage ?? "Finding the concepts and pinning them to timestamps"}
+          </p>
+          <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">
+            {Math.round(progress)}%
+          </span>
+        </div>
+
+        <div
+          className="bg-muted h-1 overflow-hidden rounded-full"
+          role="progressbar"
+          aria-valuenow={progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Roadmap progress"
+        >
+          <div
+            className="bg-foreground h-full origin-left rounded-full transition-transform duration-700 ease-out"
+            style={{ transform: `scaleX(${Math.max(progress, 2) / 100})` }}
+          />
+        </div>
+      </div>
+
+      <p className="text-muted-foreground max-w-xs text-xs leading-relaxed">
+        A step with nothing behind it is dropped, so this can finish with fewer
+        modules than the material suggests.
+      </p>
+    </div>
+  );
+}
+
 function GenerateDialog({
+  notebookId,
   disabled,
   pending,
   label = "Generate roadmap",
   onGenerate,
 }: {
+  notebookId: string;
   disabled: boolean;
   pending: boolean;
   label?: string;
-  onGenerate: (level: Level, goal?: string) => void;
+  onGenerate: (
+    level: Level,
+    goal: string | undefined,
+    sourceIds: string[],
+  ) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [level, setLevel] = useState<Level>("some");
   const [goal, setGoal] = useState("");
+  const [picked, setPicked] = useState<string[] | null>(null);
+
+  const { data: sources } = useSources(notebookId);
+
+  // Only timed, ready sources can carry a pin, so those are the only ones
+  // worth offering. A PDF in the list would be a checkbox that changes nothing.
+  const eligible = (sources ?? []).filter(
+    (source) =>
+      (source.type === "YOUTUBE" || source.type === "VTT") &&
+      source.status === "READY",
+  );
+
+  // Null means "not touched", which is every source. Materialising the full
+  // list up front would make a source added later silently excluded.
+  const selected = picked ?? eligible.map((source) => source.id);
+  const allPicked = selected.length === eligible.length;
+
+  function toggle(id: string) {
+    setPicked(
+      selected.includes(id)
+        ? selected.filter((entry) => entry !== id)
+        : [...selected, id],
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -299,17 +397,93 @@ function GenerateDialog({
           maxLength={500}
         />
 
+        {/* A notebook holding six lectures and one unrelated talk used to get
+            all seven ordered into a single path, with no way to say otherwise. */}
+        <div className="rounded-lg border">
+          <div className="flex items-center gap-2 border-b px-3 py-2">
+            <h3 className="text-muted-foreground font-mono text-[0.65rem] tracking-[0.14em] uppercase">
+              Build from
+            </h3>
+            <span className="text-muted-foreground font-mono text-[0.65rem] tabular-nums">
+              {selected.length}/{eligible.length}
+            </span>
+
+            {eligible.length > 1 && (
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-muted-foreground hover:text-foreground ml-auto"
+                onClick={() =>
+                  setPicked(
+                    allPicked ? [] : eligible.map((source) => source.id),
+                  )
+                }
+              >
+                {allPicked ? "None" : "All"}
+              </Button>
+            )}
+          </div>
+
+          <div className="max-h-40 overflow-y-auto p-1.5">
+            {eligible.map((source) => (
+              <label
+                key={source.id}
+                className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-2 py-1.5"
+              >
+                <Checkbox
+                  checked={selected.includes(source.id)}
+                  onCheckedChange={() => toggle(source.id)}
+                />
+                <span
+                  className="min-w-0 flex-1 truncate text-xs"
+                  title={source.title}
+                >
+                  {source.title}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          {/* The other half of the question. Realising the material is missing
+              is the most likely reason to be looking at this list at all, and
+              the sources panel is behind the dialog. */}
+          <div className="border-t p-1.5">
+            <AddSourceDialog
+              notebookId={notebookId}
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground w-full justify-start gap-1.5"
+                >
+                  <Plus className="size-3.5" />
+                  Add another source
+                </Button>
+              }
+            />
+          </div>
+        </div>
+
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Cancel
           </Button>
           <Button
+            disabled={selected.length === 0}
             onClick={() => {
-              onGenerate(level, goal.trim() || undefined);
+              // All of them is sent as an empty list, which the server reads as
+              // "every timed source" rather than as a frozen set.
+              onGenerate(
+                level,
+                goal.trim() || undefined,
+                allPicked ? [] : selected,
+              );
               setOpen(false);
             }}
           >
-            Build it
+            {selected.length === eligible.length
+              ? "Build it"
+              : `Build from ${selected.length}`}
           </Button>
         </DialogFooter>
       </DialogContent>
