@@ -1,20 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="pragatiLM">
   <!--
-    The wordmark cites itself: "pragatiLM" is followed by a marked [1], because
-    the product's whole claim is that every statement carries a marker back to
-    where it came from. The tab icon is that marker on its own.
+    A "p" on marker yellow.
 
-    Marker yellow with ink on top, which is the same pairing `.marked` uses for
-    every cited span in the product, so the favicon is an instance of the
-    gesture rather than a logo about it. Yellow also holds its own against a
-    light and a dark tab strip, which a monochrome mark would not.
+    This was the [1] from the wordmark on its own, on the reasoning that the
+    name cites itself and the citation marker is the product's whole idea. It
+    is not: stripped of the wordmark beside it, a 1 in a yellow square reads as
+    an unread badge, and needing a paragraph to explain a favicon means it has
+    already failed. The initial says which product this tab is, which is the
+    only job a favicon has.
 
-    Drawn as paths rather than set as text: a favicon is rendered outside the
-    page, with no access to the webfonts, so a <text> element would fall back
-    to whatever the platform felt like and the numeral would differ per device.
+    The yellow and ink pairing is kept, because that is `.marked`, the fill
+    every cited span in the product wears, and it holds against a light and a
+    dark tab strip where a monochrome mark would disappear into one of them.
+
+    Drawn as paths rather than set as text: a favicon renders outside the page
+    with no access to the webfonts, so a <text> element would fall back to
+    whatever each platform happened to have.
   -->
   <rect width="32" height="32" rx="7" fill="#F2E85C" />
-  <path d="M11 12.4 L14.6 8.6" stroke="#101318" stroke-width="3.4" stroke-linecap="square" />
-  <rect x="14.3" y="8" width="3.6" height="16.4" fill="#101318" />
-  <rect x="10" y="21.2" width="12" height="3.2" fill="#101318" />
+  <g fill="none" stroke="#101318" stroke-width="3.5" stroke-linecap="square">
+    <path d="M11.4 9.6 V 25.4" />
+    <circle cx="17.4" cy="15.2" r="4.6" />
+  </g>
 </svg>
