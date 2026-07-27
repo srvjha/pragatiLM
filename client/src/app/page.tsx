@@ -12,6 +12,7 @@ import { SiteHeader } from "@/components/marketing/site-header";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { TetherDemo } from "@/components/marketing/tether-demo";
 import { Reveal } from "@/components/marketing/reveal";
+import { SignUpMethods } from "@/components/marketing/sign-up-methods";
 
 /**
  * The landing page.
@@ -114,9 +115,7 @@ function Hero() {
               />
             </div>
 
-            <p className="text-muted-foreground mt-5 font-mono text-xs">
-              Email, Google or GitHub · Your notebooks are private to you
-            </p>
+            <SignUpMethods />
           </Reveal>
         </div>
 
