@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AudioLines, Loader2, Pause, Play, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +24,8 @@ import { ApiError } from "@/lib/api-client";
 import { isQueryable } from "@/lib/source-status";
 import type { PodcastDto, PodcastTurn } from "@/types/api";
 import type { PodcastLanguage } from "@/features/artifacts/api";
+import { episodeTimeline, turnAt } from "@/features/artifacts/episode-timeline";
+import { useEpisodePlayer } from "@/features/artifacts/use-episode-player";
 
 const lengths = [3, 6, 10] as const;
 
@@ -330,37 +332,14 @@ function Episode({
   turns: PodcastTurn[];
   durationSec: number;
 }) {
-  const audio = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [at, setAt] = useState(0);
-  const [total, setTotal] = useState(durationSec);
-  const [rate, setRate] = useState(1);
+  const { playing, at, total, rate, toggle, seek, cycleRate, bind } =
+    useEpisodePlayer(durationSec);
 
-  const { spans, measured } = useTurnSpans(turns, total);
-  const current = spans.findIndex((span) => at >= span.start && at < span.end);
-
-  const seek = useCallback((seconds: number) => {
-    const element = audio.current;
-    if (!element) return;
-
-    element.currentTime = seconds;
-    setAt(seconds);
-    void element.play().catch(() => undefined);
-  }, []);
-
-  function toggle() {
-    const element = audio.current;
-    if (!element) return;
-
-    if (element.paused) void element.play().catch(() => undefined);
-    else element.pause();
-  }
-
-  function changeRate() {
-    const next = rate === 1 ? 1.25 : rate === 1.25 ? 1.5 : rate === 1.5 ? 2 : 1;
-    setRate(next);
-    if (audio.current) audio.current.playbackRate = next;
-  }
+  const { spans, measured } = useMemo(
+    () => episodeTimeline(turns, total),
+    [turns, total],
+  );
+  const current = turnAt(spans, at);
 
   const elapsed = Math.floor(at);
   const remaining = Math.max(0, Math.floor(total) - elapsed);
@@ -368,7 +347,7 @@ function Episode({
   return (
     <div className="mt-4">
       <audio
-        ref={audio}
+        {...bind}
         preload="metadata"
         // The audio lives behind the same session as everything else, but a
         // media element is not a fetch: it sends no cookie cross origin unless
@@ -377,14 +356,6 @@ function Episode({
         // audio in the first place.
         crossOrigin="use-credentials"
         src={src}
-        onLoadedMetadata={(event) => {
-          const found = event.currentTarget.duration;
-          if (Number.isFinite(found) && found > 0) setTotal(found);
-        }}
-        onTimeUpdate={(event) => setAt(event.currentTarget.currentTime)}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
         className="hidden"
       />
 
@@ -423,7 +394,7 @@ function Episode({
 
         <button
           type="button"
-          onClick={changeRate}
+          onClick={cycleRate}
           aria-label={`Playback speed, currently ${rate} times`}
           className="text-muted-foreground hover:text-foreground hover:border-foreground/30 focus-visible:ring-ring shrink-0 cursor-pointer rounded border px-1.5 py-0.5 font-mono text-[0.65rem] tabular-nums transition-colors focus-visible:ring-2 focus-visible:outline-none"
         >
@@ -445,49 +416,6 @@ function Episode({
       </ol>
     </div>
   );
-}
-
-/**
- * Where each turn falls in the episode.
- *
- * Synthesis measures every segment and records it, so a recent episode is
- * exact. Anything made before that was recorded has no timings at all, and
- * rather than leave those transcripts dead the spans are apportioned by how
- * much text each turn holds. That is an estimate and drifts, but a transcript
- * that follows roughly is far more use than one that does not move.
- */
-function useTurnSpans(turns: PodcastTurn[], total: number) {
-  return useMemo(() => {
-    const measured =
-      turns.length > 0 &&
-      turns.every(
-        (turn) =>
-          typeof turn.startSec === "number" && typeof turn.endSec === "number",
-      );
-
-    if (measured) {
-      return {
-        measured,
-        spans: turns.map((turn) => ({
-          start: turn.startSec ?? 0,
-          end: turn.endSec ?? 0,
-        })),
-      };
-    }
-
-    const characters =
-      turns.reduce((sum, turn) => sum + turn.text.length, 0) || 1;
-    let elapsed = 0;
-
-    return {
-      measured,
-      spans: turns.map((turn) => {
-        const start = elapsed;
-        elapsed += (turn.text.length / characters) * total;
-        return { start, end: elapsed };
-      }),
-    };
-  }, [turns, total]);
 }
 
 function Turn({
