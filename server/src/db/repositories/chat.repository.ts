@@ -1,6 +1,6 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { chats, citations, messages } from "@/db/schema";
+import { chats, citations, messages, sources } from "@/db/schema";
 import type { Chat, Citation, Message, MessageStatus } from "@/db/schema";
 import type { ResolvedCitation } from "@/services/rag/citations";
 
@@ -57,10 +57,46 @@ export async function listMessages(chatId: string): Promise<MessageWithCitations
     byMessage.set(citation.messageId, list);
   }
 
+  // A citation stores the title its source had when the answer was written, so
+  // a source renamed since is cited under a name that no longer exists
+  // anywhere else in the product. That is how a YouTube video ended up listed
+  // as "YouTube video OML7ZLMdcl4" under every old answer while the rail, the
+  // viewer and the source list all showed its real title.
+  //
+  // Only the name is refreshed. The locator and the snippet stay exactly as
+  // they were recorded, because those are what let an old answer still open
+  // the passage it was actually built from. A citation whose source has been
+  // deleted has no id left to look up, and keeps the name it was written with:
+  // that name is the only record of where it came from.
+  const names = await currentSourceTitles(
+    new Set(allCitations.map((citation) => citation.sourceId).filter((id) => id !== null)),
+  );
+
   return rows.map((row) => ({
     ...row,
-    citations: (byMessage.get(row.id) ?? []).sort((a, b) => a.markerIndex - b.markerIndex),
+    citations: (byMessage.get(row.id) ?? [])
+      .sort((a, b) => a.markerIndex - b.markerIndex)
+      .map((citation) => ({
+        ...citation,
+        sourceTitle:
+          (citation.sourceId ? names.get(citation.sourceId) : undefined) ?? citation.sourceTitle,
+      })),
   }));
+}
+
+/**
+ * What the cited sources are called now. A source that has since been deleted
+ * is simply absent, and the citation keeps the name it was written with.
+ */
+async function currentSourceTitles(sourceIds: Set<string>): Promise<Map<string, string>> {
+  if (sourceIds.size === 0) return new Map();
+
+  const rows = await db
+    .select({ id: sources.id, title: sources.title })
+    .from(sources)
+    .where(inArray(sources.id, [...sourceIds]));
+
+  return new Map(rows.map((row) => [row.id, row.title]));
 }
 
 /** The last few turns, used to resolve a follow up into a standalone question. */

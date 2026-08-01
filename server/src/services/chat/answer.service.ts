@@ -156,6 +156,16 @@ export async function answerQuestion(job: AnswerJob): Promise<void> {
 
   const resolved = resolveMarkers(answer, candidates, facts);
 
+  // A chunk carries its source's title from the moment it was indexed, so a
+  // source renamed since — by its extractor or by the person — would be cited
+  // under a name the rail no longer shows. The row is the authority on what a
+  // source is called; the payload is only a cache of it.
+  const names = new Map(sources.map((source) => [source.id, source.title]));
+  const citations = resolved.citations.map((citation) => ({
+    ...citation,
+    sourceTitle: names.get(citation.sourceId) ?? citation.sourceTitle,
+  }));
+
   if (resolved.strippedCount > 0) {
     log.info(
       { messageId, stripped: resolved.strippedCount, blockCount },
@@ -163,8 +173,8 @@ export async function answerQuestion(job: AnswerJob): Promise<void> {
     );
   }
 
-  await emit(messageId, { event: "citations", data: resolved.citations });
-  await finish(job, resolved.content, stopped ? "stopped" : "complete", resolved.citations, runId);
+  await emit(messageId, { event: "citations", data: citations });
+  await finish(job, resolved.content, stopped ? "stopped" : "complete", citations, runId);
 
   // FR-3.32. After the stream, so it costs the reader nothing.
   if (runId && env.CRAG_ENABLED) {

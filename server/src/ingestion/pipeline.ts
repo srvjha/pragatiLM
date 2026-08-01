@@ -52,8 +52,11 @@ export async function runIngestion(sourceId: string, reindex = false): Promise<I
   //
   // A title the person chose is never overwritten. `renamed` is set when they
   // edit it, so a deliberate name survives a re-index.
+  let title = source.title;
+
   if (extracted.title && !source.renamed && extracted.title !== source.title) {
     await updateSource(source.notebookId, source.id, { title: extracted.title });
+    title = extracted.title;
     log.info({ sourceId: source.id, title: extracted.title }, "named the source from its content");
   }
 
@@ -116,7 +119,13 @@ export async function runIngestion(sourceId: string, reindex = false): Promise<I
     progress: 90,
   });
 
-  await upsertPoints(buildPoints(source, rows, vectors));
+  // Built from the name the source ended up with, not the one it was created
+  // with. Every chunk carries its source's title into the vector store so a
+  // citation can be rendered without a second round trip, and the row object
+  // here predates the rename above: a YouTube source was writing "YouTube
+  // video OML7…" onto all of its chunks, so every citation in every answer
+  // named the video by its id while the rail showed the real title.
+  await upsertPoints(buildPoints({ ...source, title }, rows, vectors));
 
   await setSourceStatus({
     sourceId: source.id,
