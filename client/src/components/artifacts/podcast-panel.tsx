@@ -31,6 +31,7 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
   const client = useQueryClient();
   const { data: sources } = useSources(notebookId);
   const ready = (sources ?? []).filter(isQueryable);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const { data: episodes, isPending } = useQuery({
     queryKey: queryKeys.podcasts(notebookId),
@@ -55,8 +56,11 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
         options.minutes,
         options.voicePair,
       ),
-    onSuccess: () => {
+    onSuccess: (created) => {
       toast.success("Writing the script...");
+      // Opened straight away, because the thing someone wants to watch is the
+      // episode they just asked for, not the one they were reading before.
+      if (created?.id) setOpenId(created.id);
       void client.invalidateQueries({
         queryKey: queryKeys.podcasts(notebookId),
       });
@@ -78,9 +82,14 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
     );
   }
 
+  const list = episodes ?? [];
+  // The newest unless something else was picked, so the panel opens on the
+  // episode most likely to be wanted rather than on nothing.
+  const open = list.find((episode) => episode.id === openId) ?? list[0] ?? null;
+
   return (
-    <div className="h-full overflow-y-auto p-4">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="@container flex h-full flex-col">
+      <div className="flex shrink-0 items-center justify-between border-b px-4 py-2.5">
         <h2 className="text-sm font-semibold">Podcast</h2>
         <CreateDialog
           disabled={ready.length === 0 || create.isPending}
@@ -93,7 +102,7 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
         />
       </div>
 
-      {(episodes ?? []).length === 0 && (
+      {list.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
           <AudioLines
             className="text-muted-foreground size-8"
@@ -108,22 +117,98 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
             </p>
           </div>
         </div>
-      )}
+      ) : (
+        /*
+         * One episode open at a time, listed beside rather than beneath.
+         *
+         * Every episode used to render its own player and its whole transcript
+         * into one column, so ten episodes meant ten audio elements each
+         * fetching metadata, and the one being listened to was somewhere down a
+         * page of transcripts belonging to episodes nobody had asked for.
+         *
+         * The split is a container query rather than a viewport one, because
+         * this panel sits between two resizable columns: what decides whether
+         * there is room for a list beside the episode is the width of this
+         * panel, not the width of the screen.
+         */
+        <div className="flex min-h-0 flex-1 flex-col @2xl:flex-row">
+          <nav
+            aria-label="Episodes"
+            className="max-h-44 shrink-0 overflow-y-auto border-b p-2 @2xl:max-h-none @2xl:w-60 @2xl:border-r @2xl:border-b-0"
+          >
+            <ul className="space-y-0.5">
+              {list.map((episode) => (
+                <EpisodeListItem
+                  key={episode.id}
+                  episode={episode}
+                  open={episode.id === open?.id}
+                  onOpen={() => setOpenId(episode.id)}
+                />
+              ))}
+            </ul>
+          </nav>
 
-      <ul className="space-y-3">
-        {(episodes ?? []).map((episode) => (
-          <EpisodeRow
-            key={episode.id}
-            notebookId={notebookId}
-            episode={episode}
-          />
-        ))}
-      </ul>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {open && <EpisodeDetail notebookId={notebookId} episode={open} />}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function EpisodeRow({
+/** One line in the list: enough to choose by, and nothing that has to load. */
+function EpisodeListItem({
+  episode,
+  open,
+  onOpen,
+}: {
+  episode: PodcastDto;
+  open: boolean;
+  onOpen: () => void;
+}) {
+  const working = episode.status === "QUEUED" || episode.status === "RUNNING";
+
+  return (
+    <li className="relative">
+      {/* The same mark the notebook rail uses for the notebook you are in. */}
+      {open && (
+        <span
+          aria-hidden
+          className="bg-marker absolute inset-y-0 left-0 w-[3px] rounded-l"
+        />
+      )}
+
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-current={open ? "true" : undefined}
+        className={cn(
+          "focus-visible:ring-ring w-full cursor-pointer rounded px-2.5 py-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
+          open ? "bg-accent" : "hover:bg-accent/50",
+        )}
+      >
+        <span className="flex items-center gap-1.5">
+          {working && (
+            <Loader2 className="text-muted-foreground size-3 shrink-0 animate-spin" />
+          )}
+          <span className="min-w-0 flex-1 truncate text-xs font-medium">
+            {episode.title}
+          </span>
+        </span>
+        <span className="text-muted-foreground mt-0.5 block font-mono text-[0.65rem] tabular-nums">
+          {new Date(episode.createdAt).toLocaleDateString()}
+          {episode.durationSec
+            ? ` \u00b7 ${formatDuration(episode.durationSec)}`
+            : ""}
+          {episode.status === "FAILED" ? " \u00b7 failed" : ""}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+function EpisodeDetail({
   notebookId,
   episode,
 }: {
@@ -134,17 +219,15 @@ function EpisodeRow({
   const turns = episode.script ?? [];
 
   return (
-    <li className="rounded-lg border p-3">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium">{episode.title}</p>
-        <p className="text-muted-foreground font-mono text-[0.7rem]">
-          {new Date(episode.createdAt).toLocaleDateString()}
-          {episode.durationSec
-            ? ` \u00b7 ${formatDuration(episode.durationSec)}`
-            : ""}
-          {turns.length > 0 ? ` \u00b7 ${turns.length} turns` : ""}
-        </p>
-      </div>
+    <div>
+      <p className="text-sm font-medium">{episode.title}</p>
+      <p className="text-muted-foreground font-mono text-[0.7rem]">
+        {new Date(episode.createdAt).toLocaleDateString()}
+        {episode.durationSec
+          ? ` \u00b7 ${formatDuration(episode.durationSec)}`
+          : ""}
+        {turns.length > 0 ? ` \u00b7 ${turns.length} turns` : ""}
+      </p>
 
       {/* FR-7.3: the stage shown is the stage the job is in, not an animation. */}
       {working && (
@@ -170,6 +253,9 @@ function EpisodeRow({
 
       {episode.status === "READY" && (
         <Episode
+          // Remounts when the open episode changes, so the player never carries
+          // the previous episode's position into the next one.
+          key={episode.id}
           src={api.podcastAudioUrl(notebookId, episode.id)}
           turns={turns}
           durationSec={episode.durationSec ?? 0}
@@ -185,7 +271,7 @@ function EpisodeRow({
           ))}
         </ol>
       )}
-    </li>
+    </div>
   );
 }
 
