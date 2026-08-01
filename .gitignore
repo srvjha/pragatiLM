@@ -22,3 +22,6 @@ playwright-report/
 # ninety files of somebody else's prose into every diff.
 .claude/skills/
 .agents/skills/
+
+# Database dumps. Local copies of everything the product holds — never in git.
+backups/
