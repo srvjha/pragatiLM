@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AudioLines, Loader2, Pause, Play } from "lucide-react";
+import { AudioLines, Loader2, Pause, Play, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -89,33 +89,29 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
 
   return (
     <div className="@container flex h-full flex-col">
-      <div className="flex shrink-0 items-center justify-between border-b px-4 py-2.5">
-        <h2 className="text-sm font-semibold">Podcast</h2>
-        <CreateDialog
-          disabled={ready.length === 0 || create.isPending}
-          notebookId={notebookId}
-          sources={ready.map((source) => ({
-            id: source.id,
-            title: source.title,
-          }))}
-          onCreate={(options) => create.mutate(options)}
-        />
-      </div>
-
       {list.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-12 text-center">
+        <div className="flex flex-col items-center gap-4 py-16 text-center">
           <AudioLines
             className="text-muted-foreground size-8"
             strokeWidth={1.5}
           />
           <div>
             <p className="text-sm font-medium">No episodes yet</p>
-            <p className="text-muted-foreground mt-1 max-w-sm text-xs">
+            <p className="text-muted-foreground mx-auto mt-1.5 max-w-sm text-xs leading-relaxed">
               {ready.length === 0
                 ? "Add a source and wait for it to finish indexing."
                 : "Two hosts talk through what is in this notebook, using nothing else."}
             </p>
           </div>
+          <CreateDialog
+            disabled={ready.length === 0 || create.isPending}
+            notebookId={notebookId}
+            sources={ready.map((source) => ({
+              id: source.id,
+              title: source.title,
+            }))}
+            onCreate={(options) => create.mutate(options)}
+          />
         </div>
       ) : (
         /*
@@ -134,9 +130,27 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
         <div className="flex min-h-0 flex-1 flex-col @2xl:flex-row">
           <nav
             aria-label="Episodes"
-            className="max-h-44 shrink-0 overflow-y-auto border-b p-2 @2xl:max-h-none @2xl:w-60 @2xl:border-r @2xl:border-b-0"
+            className="flex max-h-48 shrink-0 flex-col overflow-hidden border-b @2xl:max-h-none @2xl:w-56 @2xl:border-r @2xl:border-b-0"
           >
-            <ul className="space-y-0.5">
+            {/* The action belongs to the list it adds to, which is also where
+                the notebooks rail keeps its own. */}
+            <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2.5">
+              <span className="text-muted-foreground font-mono text-[0.65rem] tracking-wider uppercase">
+                {list.length} {list.length === 1 ? "episode" : "episodes"}
+              </span>
+              <CreateDialog
+                compact
+                disabled={ready.length === 0 || create.isPending}
+                notebookId={notebookId}
+                sources={ready.map((source) => ({
+                  id: source.id,
+                  title: source.title,
+                }))}
+                onCreate={(options) => create.mutate(options)}
+              />
+            </div>
+
+            <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
               {list.map((episode) => (
                 <EpisodeListItem
                   key={episode.id}
@@ -148,8 +162,13 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
             </ul>
           </nav>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            {open && <EpisodeDetail notebookId={notebookId} episode={open} />}
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+            {/* A transcript is read, so it gets a measure like anything else
+                that is read here. Running the full width of a wide panel put
+                ninety characters on a line. */}
+            <div className="mx-auto max-w-[40rem]">
+              {open && <EpisodeDetail notebookId={notebookId} episode={open} />}
+            </div>
           </div>
         </div>
       )}
@@ -184,19 +203,23 @@ function EpisodeListItem({
         onClick={onOpen}
         aria-current={open ? "true" : undefined}
         className={cn(
-          "focus-visible:ring-ring w-full cursor-pointer rounded px-2.5 py-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
+          "focus-visible:ring-ring w-full cursor-pointer rounded px-3 py-2.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
           open ? "bg-accent" : "hover:bg-accent/50",
         )}
       >
-        <span className="flex items-center gap-1.5">
+        <span className="flex items-start gap-1.5">
           {working && (
-            <Loader2 className="text-muted-foreground size-3 shrink-0 animate-spin" />
+            <Loader2 className="text-muted-foreground mt-0.5 size-3 shrink-0 animate-spin" />
           )}
-          <span className="min-w-0 flex-1 truncate text-xs font-medium">
+          {/* Two lines rather than one truncated one: every episode in a
+              notebook is about the same material, so they open with the same
+              few words and the part that tells them apart was the part being
+              cut off. */}
+          <span className="line-clamp-2 min-w-0 flex-1 text-xs leading-snug font-medium">
             {episode.title}
           </span>
         </span>
-        <span className="text-muted-foreground mt-0.5 block font-mono text-[0.65rem] tabular-nums">
+        <span className="text-muted-foreground mt-1 block font-mono text-[0.65rem] tabular-nums">
           {new Date(episode.createdAt).toLocaleDateString()}
           {episode.durationSec
             ? ` \u00b7 ${formatDuration(episode.durationSec)}`
@@ -220,8 +243,10 @@ function EpisodeDetail({
 
   return (
     <div>
-      <p className="text-sm font-medium">{episode.title}</p>
-      <p className="text-muted-foreground font-mono text-[0.7rem]">
+      <p className="text-[0.95rem] leading-snug font-semibold tracking-tight">
+        {episode.title}
+      </p>
+      <p className="text-muted-foreground mt-1 font-mono text-[0.7rem]">
         {new Date(episode.createdAt).toLocaleDateString()}
         {episode.durationSec
           ? ` \u00b7 ${formatDuration(episode.durationSec)}`
@@ -265,7 +290,7 @@ function EpisodeDetail({
       {/* An episode still being made already has its script, and reading it is
           the only thing there is to do while the voices are recorded. */}
       {working && turns.length > 0 && (
-        <ol className="mt-3 space-y-2 border-t pt-3">
+        <ol className="mt-5 space-y-3 border-t pt-4">
           {turns.map((turn, index) => (
             <Turn key={index} turn={turn} />
           ))}
@@ -328,7 +353,7 @@ function Episode({
   const remaining = Math.max(0, Math.floor(total) - elapsed);
 
   return (
-    <div className="mt-3">
+    <div className="mt-4">
       <audio
         ref={audio}
         preload="metadata"
@@ -350,7 +375,7 @@ function Episode({
         className="hidden"
       />
 
-      <div className="bg-card flex items-center gap-3 rounded-lg border p-2.5">
+      <div className="bg-card flex items-center gap-3.5 rounded-lg border p-3">
         <button
           type="button"
           onClick={toggle}
@@ -393,7 +418,7 @@ function Episode({
         </button>
       </div>
 
-      <ol className="mt-3 space-y-1 border-t pt-3">
+      <ol className="mt-5 space-y-3 border-t pt-4">
         {turns.map((turn, index) => (
           <Turn
             key={index}
@@ -524,7 +549,7 @@ function Turn({
       // spoken right now is exactly that: the place in the transcript the audio
       // has reached.
       className={cn(
-        "flex rounded border-l-2 transition-colors",
+        "flex rounded-r border-l-2 transition-colors",
         active ? "border-marker bg-accent/40" : "border-transparent",
         // A line you can click to hear should say so before it is clicked.
         seekable && !active && "hover:bg-accent/25",
@@ -535,12 +560,12 @@ function Turn({
           type="button"
           onClick={() => onSeek(startSec)}
           title={`Play from ${formatDuration(Math.floor(startSec))}`}
-          className="focus-visible:ring-ring flex flex-1 cursor-pointer gap-2 rounded py-1 pl-2 text-left focus-visible:ring-2 focus-visible:outline-none"
+          className="focus-visible:ring-ring flex flex-1 cursor-pointer gap-3 rounded-r py-1.5 pr-1 pl-3 text-left focus-visible:ring-2 focus-visible:outline-none"
         >
           {body}
         </button>
       ) : (
-        <div className="flex flex-1 gap-2 py-1 pl-2">{body}</div>
+        <div className="flex flex-1 gap-3 py-1.5 pr-1 pl-3">{body}</div>
       )}
     </li>
   );
@@ -564,8 +589,15 @@ function CreateDialog({
   notebookId,
   sources,
   onCreate,
+  compact = false,
 }: {
   disabled: boolean;
+  /**
+   * An icon in the list header, where the notebooks rail puts the same control
+   * and where a labelled button would take half the column. Spelled out in the
+   * empty state, where it is the only thing to do on the screen.
+   */
+  compact?: boolean;
   notebookId: string;
   /** The ready sources, which are the only ones that can be drawn from. */
   sources: { id: string; title: string }[];
@@ -594,9 +626,22 @@ function CreateDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button size="sm" disabled={disabled}>
-            New episode
-          </Button>
+          compact ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              disabled={disabled}
+              aria-label="New episode"
+              title="New episode"
+              className="size-7 shrink-0"
+            >
+              <Plus className="size-4" />
+            </Button>
+          ) : (
+            <Button size="sm" disabled={disabled}>
+              New episode
+            </Button>
+          )
         }
       />
       <DialogContent className="sm:max-w-md">
