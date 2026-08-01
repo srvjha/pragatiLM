@@ -113,9 +113,68 @@ podcastRouter.get("/:podcastId/audio", validate({ params: podcastIdParams }), (r
       if (!audio) throw notFound("This episode has no audio yet");
 
       res.setHeader("Content-Type", audio.mimeType);
-      res.setHeader("Content-Length", String(audio.sizeBytes));
       res.setHeader("Accept-Ranges", "bytes");
+
+      /**
+       * Range requests are answered rather than only advertised.
+       *
+       * `Accept-Ranges: bytes` was being sent while every request got the whole
+       * body back with a 200, which is a promise the response then breaks.
+       * Chrome tolerates it and loses seeking; Safari asks for a range before
+       * it will play anything at all and treats a 200 as a refusal, so an
+       * episode that plays on one machine silently does not on another.
+       */
+      const total = audio.bytes.length;
+      const requested = parseRange(req.headers.range, total);
+
+      if (requested === "unsatisfiable") {
+        res.setHeader("Content-Range", `bytes */${total}`);
+        res.status(416).end();
+        return;
+      }
+
+      if (requested) {
+        const { start, end } = requested;
+        res.status(206);
+        res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+        res.setHeader("Content-Length", String(end - start + 1));
+        res.end(audio.bytes.subarray(start, end + 1));
+        return;
+      }
+
+      res.setHeader("Content-Length", String(total));
       res.send(audio.bytes);
     })
     .catch(next);
 });
+
+/**
+ * The one form of Range that matters here: a single byte range over a file the
+ * server already holds whole. Anything stranger than that, including the
+ * multi-range syntax no audio player sends, falls back to the entire body,
+ * which is always a valid answer to a range request.
+ */
+function parseRange(
+  header: string | undefined,
+  total: number,
+): { start: number; end: number } | "unsatisfiable" | null {
+  if (!header) return null;
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match) return null;
+
+  const [, rawStart, rawEnd] = match;
+
+  // "bytes=-500" means the last 500 bytes, not a range starting at nothing.
+  const suffix = rawStart === "";
+  if (suffix && rawEnd === "") return null;
+
+  const start = suffix ? Math.max(0, total - Number(rawEnd)) : Number(rawStart);
+  const end = suffix || rawEnd === "" ? total - 1 : Math.min(Number(rawEnd), total - 1);
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= total) {
+    return "unsatisfiable";
+  }
+
+  return { start, end };
+}
