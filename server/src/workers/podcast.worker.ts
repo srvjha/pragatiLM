@@ -4,9 +4,9 @@ import { connection, QUEUE_NAMES } from "@/queues";
 import { db } from "@/db/client";
 import { podcasts } from "@/db/schema";
 import { buildScript, saveEpisode, synthesiseEpisode } from "@/services/podcast/podcast.service";
+import { podcastRun } from "@/services/artifact-run.service";
 import { channels, publish } from "@/lib/events";
 import { childLogger } from "@/lib/logger";
-import type { PodcastStage } from "@/db/schema";
 import type { VoicePair } from "@/providers/tts";
 import type { PodcastLanguage } from "@/types/domain";
 
@@ -26,24 +26,9 @@ async function run(job: Job<PodcastJob>): Promise<void> {
 
   // FR-7.3: the stage the user sees is the stage the job is actually in, not a
   // timed animation.
-  const report = async (stage: string, progress: number) => {
-    const column: PodcastStage = stage.startsWith("SYNTHESIZING")
-      ? "SYNTHESIZING"
-      : stage === "MIXING"
-        ? "MIXING"
-        : "SCRIPTING";
+  const run = podcastRun(podcastId);
 
-    await db.update(podcasts).set({ progress, stage: column }).where(eq(podcasts.id, podcastId));
-
-    await publish(channels.source(notebookId), {
-      type: "podcast.status",
-      podcastId,
-      stage,
-      progress,
-    });
-  };
-
-  await report("SCRIPTING", 5);
+  await run.report("SCRIPTING", 5);
   const script = await buildScript(notebookId, sourceIds, lengthMinutes, language);
 
   await db
@@ -51,7 +36,7 @@ async function run(job: Job<PodcastJob>): Promise<void> {
     .set({ title: script.title, script: script.turns, status: "RUNNING" })
     .where(eq(podcasts.id, podcastId));
 
-  const episode = await synthesiseEpisode(script.turns, report, voicePair, language);
+  const episode = await synthesiseEpisode(script.turns, run.report, voicePair, language);
   await saveEpisode(podcastId, episode.bytes, episode.durationSec, episode.turns);
 
   await publish(channels.source(notebookId), {
@@ -80,18 +65,7 @@ export function createPodcastWorker(): Worker<PodcastJob> {
     log.error({ err: error }, "podcast failed");
     if (!job?.data.podcastId) return;
 
-    void db
-      .update(podcasts)
-      .set({ status: "FAILED", errorMessage: error.message })
-      .where(eq(podcasts.id, job.data.podcastId))
-      .then(() =>
-        publish(channels.source(job.data.notebookId), {
-          type: "podcast.status",
-          podcastId: job.data.podcastId,
-          stage: "FAILED",
-          error: error.message,
-        }),
-      );
+    void podcastRun(job.data.podcastId).fail(error.message);
   });
 
   return worker;
