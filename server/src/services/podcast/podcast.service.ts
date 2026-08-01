@@ -9,9 +9,12 @@ import { db } from "@/db/client";
 import { chunks, podcasts, podcastAudio, sources } from "@/db/schema";
 import { chatModel, hasLlmCredentials } from "@/providers/llm";
 import { DEFAULT_VOICE_PAIR, ttsProvider, type VoicePair } from "@/providers/tts";
+import { childLogger } from "@/lib/logger";
 import type { PodcastLanguage, PodcastTurn } from "@/types/domain";
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
+
+const log = childLogger("podcast");
 
 /**
  * FR-7. Two hosts talking about the notebook's own material.
@@ -207,16 +210,52 @@ const round = (seconds: number) => Math.round(seconds * 100) / 100;
 /**
  * Plain concatenation: the segments are already one voice each, so a crossfade
  * would blur the handover rather than smooth it.
+ *
+ * Copied rather than re-encoded. `mergeToFile` decodes every segment and
+ * encodes the result at ffmpeg's defaults, which for mono mp3 is 32 kb/s — so
+ * episodes were arriving at a quarter of the bitrate their voices were
+ * synthesised at, and the loss was invisible because nothing downstream
+ * reports it. The concat demuxer with `-c copy` moves the existing frames into
+ * one file and touches none of them, which is also considerably faster.
+ *
+ * Every segment in an episode comes from one model at one setting, so their
+ * parameters match and copying is safe. If that ever stops being true ffmpeg
+ * refuses rather than producing something broken, and the fallback re-encodes
+ * at a bitrate worth having instead of at the default.
  */
-function concat(files: string[], output: string, workingDirectory: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const command = ffmpeg();
-    for (const file of files) command.input(file);
+async function concat(files: string[], output: string, workingDirectory: string): Promise<void> {
+  // The demuxer reads a list file rather than repeated inputs. Single quotes
+  // are the escape ffmpeg's own parser expects.
+  const listFile = join(workingDirectory, "segments.txt");
+  const list = files.map((file) => `file '${file.replace(/'/g, "'\\''")}'`).join("\n");
+  await writeFile(listFile, list);
 
-    command
+  try {
+    await run((command) =>
+      command
+        .input(listFile)
+        .inputOptions(["-f", "concat", "-safe", "0"])
+        .outputOptions(["-c", "copy"])
+        .save(output),
+    );
+  } catch (error) {
+    log.warn({ err: error }, "could not copy the segments into one file, re-encoding instead");
+
+    await run((command) => {
+      for (const file of files) command.input(file);
+      return command.outputOptions(["-b:a", "128k"]).mergeToFile(output, workingDirectory);
+    });
+  }
+}
+
+/** One ffmpeg invocation, as a promise. */
+function run(build: (command: ffmpeg.FfmpegCommand) => unknown): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const command = ffmpeg()
       .on("end", () => resolve())
-      .on("error", (error: Error) => reject(error))
-      .mergeToFile(output, workingDirectory);
+      .on("error", (error: Error) => reject(error));
+
+    build(command);
   });
 }
 
