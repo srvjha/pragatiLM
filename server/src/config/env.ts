@@ -139,11 +139,22 @@ const schema = z.object({
   COHERE_API_KEY: optionalString,
   RERANK_ENABLED: booleanish.default(true),
 
-  // The named half of the "warm" voice pair. The other pairs are fixed in the
-  // TTS provider, because what matters in a two host format is that the two
-  // voices are distinguishable from each other.
-  TTS_VOICE_FEMALE: z.string().default("nova"),
-  TTS_VOICE_MALE: z.string().default("onyx"),
+  // Text to speech. Empty means OpenAI's own endpoint; anything else is a
+  // service that speaks the same API, which is all of the ones worth using:
+  // https://api.deepinfra.com/v1/openai for Kokoro billed per character, or
+  // http://kokoro:8880/v1 for a container you run yourself.
+  TTS_BASE_URL: optionalString,
+  // Falls back to OPENAI_API_KEY, so pointing this at OpenAI needs no key of
+  // its own and a self-hosted container needs no real key at all.
+  TTS_API_KEY: optionalString,
+  TTS_MODEL: z.string().default("gpt-4o-mini-tts"),
+  // Which set of voice names the backend answers to. The three pairs the
+  // product offers are named the same either way; only the voices differ.
+  TTS_VOICES: z.enum(["openai", "kokoro"]).default("openai"),
+  // Optional override for the "warm" pair alone, so a deployment that pinned
+  // these two before the backend was configurable keeps the voices it had.
+  TTS_VOICE_FEMALE: optionalString,
+  TTS_VOICE_MALE: optionalString,
 
   CHUNK_TARGET_TOKENS: positiveInt.default(900),
   CHUNK_OVERLAP_TOKENS: nonNegativeInt.default(150),
