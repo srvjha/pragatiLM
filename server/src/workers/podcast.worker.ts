@@ -50,7 +50,7 @@ async function run(job: Job<PodcastJob>): Promise<void> {
     .where(eq(podcasts.id, podcastId));
 
   const episode = await synthesiseEpisode(script.turns, report, voicePair);
-  await saveEpisode(podcastId, episode.bytes, episode.durationSec);
+  await saveEpisode(podcastId, episode.bytes, episode.durationSec, episode.turns);
 
   await publish(channels.source(notebookId), {
     type: "podcast.status",

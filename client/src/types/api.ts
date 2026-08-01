@@ -153,6 +153,13 @@ export type PodcastTurn = {
   host: "A" | "B";
   text: string;
   sourceIds: string[];
+  /**
+   * Where this turn falls in the finished episode, measured from the segment
+   * synthesised for it. Absent on episodes made before the timings were
+   * recorded, so the transcript has to cope without them.
+   */
+  startSec?: number;
+  endSec?: number;
 };
 
 export type PodcastDto = {

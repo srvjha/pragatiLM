@@ -53,6 +53,16 @@ export type PodcastTurn = {
   host: "A" | "B";
   text: string;
   sourceIds: string[];
+  /**
+   * Where this turn falls in the finished episode, measured from the segment
+   * that was actually synthesised for it rather than guessed from its length.
+   *
+   * Absent until the audio exists, and absent forever on episodes made before
+   * the timings were recorded, so anything reading these has to cope without
+   * them.
+   */
+  startSec?: number;
+  endSec?: number;
 };
 
 /** One retrieval round, recorded for the trace. Diagnostic only. */

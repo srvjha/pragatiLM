@@ -117,12 +117,14 @@ export async function synthesiseEpisode(
   turns: PodcastTurn[],
   report: ProgressReporter,
   voicePair: VoicePair = DEFAULT_VOICE_PAIR,
-): Promise<{ bytes: Buffer; durationSec: number }> {
+): Promise<{ bytes: Buffer; durationSec: number; turns: PodcastTurn[] }> {
   const tts = ttsProvider();
   const directory = await mkdtemp(join(tmpdir(), "notebook-podcast-"));
 
   try {
     const files: string[] = [];
+    const timed: PodcastTurn[] = [];
+    let elapsed = 0;
 
     for (const [index, turn] of turns.entries()) {
       await report(
@@ -138,6 +140,15 @@ export async function synthesiseEpisode(
       const file = join(directory, `turn-${String(index).padStart(3, "0")}.mp3`);
       await writeFile(file, audio);
       files.push(file);
+
+      // Each segment is measured as it is made, which is the only moment its
+      // length is known for certain: the concatenated episode has no seams left
+      // in it to find afterwards, and estimating from word counts drifts badly
+      // over ten turns, which is exactly where a transcript that follows the
+      // audio stops being worth having.
+      const seconds = await probeDuration(file);
+      timed.push({ ...turn, startSec: round(elapsed), endSec: round(elapsed + seconds) });
+      elapsed += seconds;
     }
 
     await report("MIXING", 85);
@@ -145,11 +156,18 @@ export async function synthesiseEpisode(
     const output = join(directory, "episode.mp3");
     await concat(files, output, directory);
 
-    return { bytes: await readFile(output), durationSec: await probeDuration(output) };
+    return {
+      bytes: await readFile(output),
+      durationSec: await probeDuration(output),
+      turns: timed,
+    };
   } finally {
     await rm(directory, { recursive: true, force: true }).catch(() => undefined);
   }
 }
+
+/** Hundredths of a second: finer than anyone can hear a highlight land. */
+const round = (seconds: number) => Math.round(seconds * 100) / 100;
 
 /**
  * Plain concatenation: the segments are already one voice each, so a crossfade
@@ -183,6 +201,8 @@ export async function saveEpisode(
   podcastId: string,
   bytes: Buffer,
   durationSec: number,
+  /** The same turns, now carrying the timings the synthesis measured. */
+  turns?: PodcastTurn[],
 ): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.delete(podcastAudio).where(eq(podcastAudio.podcastId, podcastId));
@@ -194,7 +214,16 @@ export async function saveEpisode(
     });
     await tx
       .update(podcasts)
-      .set({ status: "READY", stage: "READY", progress: 100, durationSec })
+      .set({
+        status: "READY",
+        stage: "READY",
+        progress: 100,
+        durationSec,
+        // Rewritten rather than merged: the script was stored before the audio
+        // existed, so this is the same turns with the one thing added that
+        // could not be known until they had been spoken.
+        ...(turns ? { script: turns } : {}),
+      })
       .where(eq(podcasts.id, podcastId));
   });
 }
