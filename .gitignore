@@ -16,3 +16,9 @@ playwright-report/
 .env
 .env.*
 !.env.example
+
+# Installed agent skills. These come from an upstream toolkit rather than from
+# this project, are refreshed by their own installer, and would otherwise put
+# ninety files of somebody else's prose into every diff.
+.claude/skills/
+.agents/skills/

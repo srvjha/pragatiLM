@@ -78,12 +78,12 @@ describe("tts provider", () => {
     const backend = await stubBackend();
 
     try {
-      const { createTts, VOICE_PAIRS } = await providerWith({ TTS_BASE_URL: backend.url });
+      const { createOpenAiTts, VOICE_PAIRS } = await providerWith({ TTS_BASE_URL: backend.url });
 
       expect(VOICE_PAIRS.warm.female).toBe("nova");
       expect(VOICE_PAIRS.calm.male).toBe("ash");
 
-      const audio = await createTts().synthesise("Hello there.", "female");
+      const audio = await createOpenAiTts().synthesise("Hello there.", "female");
 
       expect(backend.calls).toHaveLength(1);
       expect(backend.calls[0]?.path).toBe("/v1/audio/speech");
@@ -103,7 +103,7 @@ describe("tts provider", () => {
     const backend = await stubBackend();
 
     try {
-      const { createTts, VOICE_PAIRS } = await providerWith({
+      const { createOpenAiTts, VOICE_PAIRS } = await providerWith({
         TTS_BASE_URL: backend.url,
         TTS_API_KEY: "di-test",
         TTS_MODEL: "hexgrad/Kokoro-82M",
@@ -115,7 +115,7 @@ describe("tts provider", () => {
       expect(Object.keys(VOICE_PAIRS)).toEqual(["warm", "bright", "calm"]);
       expect(VOICE_PAIRS.warm.female).toBe("af_heart");
 
-      const tts = createTts();
+      const tts = createOpenAiTts();
       await tts.synthesise("First.", "male", "bright");
       await tts.synthesise("Second.", "female", "calm");
 
@@ -143,11 +143,11 @@ describe("tts provider", () => {
   });
 
   it("refuses to synthesise when nothing has a key", async () => {
-    const { createTts, TtsError } = await providerWith({
+    const { createOpenAiTts, TtsError } = await providerWith({
       OPENAI_API_KEY: undefined,
       TTS_BASE_URL: "https://api.deepinfra.com/v1/openai",
     });
 
-    expect(() => createTts()).toThrow(TtsError);
+    expect(() => createOpenAiTts()).toThrow(TtsError);
   });
 });

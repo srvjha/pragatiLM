@@ -170,7 +170,7 @@ export async function synthesiseEpisode(
         turn.text,
         turn.host === "A" ? "female" : "male",
         voicePair,
-        DELIVERY[language],
+        { ...(DELIVERY[language] ? { instructions: DELIVERY[language] } : {}), language },
       );
       const file = join(directory, `turn-${String(index).padStart(3, "0")}.mp3`);
       await writeFile(file, audio);

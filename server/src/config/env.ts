@@ -139,6 +139,17 @@ const schema = z.object({
   COHERE_API_KEY: optionalString,
   RERANK_ENABLED: booleanish.default(true),
 
+  /**
+   * Which service speaks the podcast.
+   *
+   * `openai` covers everything that speaks the OpenAI audio API — OpenAI
+   * itself, Kokoro on DeepInfra, a Kokoro container — and is configured by the
+   * four variables below it. `sarvam` is a different API and a different shape,
+   * and is the one to pick for Hindi or Indian English: the OpenAI voices are
+   * English models reading Devanagari, which is what makes them sound robotic.
+   */
+  TTS_PROVIDER: z.enum(["openai", "sarvam"]).default("openai"),
+
   // Text to speech. Empty means OpenAI's own endpoint; anything else is a
   // service that speaks the same API, which is all of the ones worth using:
   // https://api.deepinfra.com/v1/openai for Kokoro billed per character, or
@@ -150,11 +161,18 @@ const schema = z.object({
   TTS_MODEL: z.string().default("gpt-4o-mini-tts"),
   // Which set of voice names the backend answers to. The three pairs the
   // product offers are named the same either way; only the voices differ.
-  TTS_VOICES: z.enum(["openai", "kokoro"]).default("openai"),
+  // Left unset it follows TTS_PROVIDER, which is right except when pointing
+  // the OpenAI-shaped client at Kokoro.
+  TTS_VOICES: z.enum(["openai", "kokoro", "sarvam"]).optional(),
   // Optional override for the "warm" pair alone, so a deployment that pinned
   // these two before the backend was configurable keeps the voices it had.
   TTS_VOICE_FEMALE: optionalString,
   TTS_VOICE_MALE: optionalString,
+
+  // Sarvam Bulbul. Keys come from https://dashboard.sarvam.ai — the free tier
+  // is ₹1,000 of credit, which is roughly forty episodes, and needs no card.
+  SARVAM_API_KEY: optionalString,
+  SARVAM_MODEL: z.string().default("bulbul:v3"),
 
   CHUNK_TARGET_TOKENS: positiveInt.default(900),
   CHUNK_OVERLAP_TOKENS: nonNegativeInt.default(150),
