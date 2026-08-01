@@ -9,7 +9,7 @@ import { db } from "@/db/client";
 import { chunks, podcasts, podcastAudio, sources } from "@/db/schema";
 import { chatModel, hasLlmCredentials } from "@/providers/llm";
 import { DEFAULT_VOICE_PAIR, ttsProvider, type VoicePair } from "@/providers/tts";
-import type { PodcastTurn } from "@/types/domain";
+import type { PodcastLanguage, PodcastTurn } from "@/types/domain";
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -35,10 +35,30 @@ const scriptSchema = z.object({
 /** Roughly 150 spoken words a minute, which sets how much script to ask for. */
 const WORDS_PER_MINUTE = 150;
 
+/**
+ * How each language is asked for.
+ *
+ * Hindi is not requested as pure Hindi on purpose. Nobody discussing databases
+ * in Hindi says "आँकड़ा संरचना" — they say "data structure" in the middle of a
+ * Hindi sentence, and a script that translates every technical term reads as a
+ * textbook being recited rather than two people talking. The title follows the
+ * script, because an episode titled in English whose every word is Hindi looks
+ * like the wrong file.
+ */
+const LANGUAGE_RULES: Record<PodcastLanguage, string> = {
+  en: "Write the conversation in English.",
+  hi: [
+    "Write the conversation in Hindi, in Devanagari script, including the episode title.",
+    "Keep technical terms, product names and acronyms in English the way a Hindi speaker actually says them, rather than translating them into formal Hindi.",
+    "Write it as two Indians talking to each other, not as a translation of an English script.",
+  ].join(" "),
+};
+
 export async function buildScript(
   notebookId: string,
   sourceIds: string[],
   lengthMinutes: number,
+  language: PodcastLanguage = "en",
 ): Promise<{ title: string; turns: PodcastTurn[] }> {
   if (!hasLlmCredentials()) {
     throw new Error("OPENAI_API_KEY is not set, so a podcast cannot be generated.");
@@ -87,6 +107,9 @@ export async function buildScript(
         "Attribute every turn to the source ids it draws on.",
         "Write speech, not prose: no headings, no bullet points, no stage directions.",
         `Aim for roughly ${targetWords} words in total.`,
+        // The material can be in any language; what the hosts speak is a
+        // separate choice, so this is stated rather than inferred from it.
+        LANGUAGE_RULES[language],
       ].join(" "),
     },
     { role: "user", content: material },
@@ -109,6 +132,16 @@ export async function buildScript(
 export type ProgressReporter = (stage: string, progress: number) => Promise<void>;
 
 /**
+ * How the voice is asked to say it. Only the steerable backends read this, and
+ * it matters most for Hindi: the voices are English first, so left alone they
+ * read Devanagari with an American mouth.
+ */
+const DELIVERY: Record<PodcastLanguage, string | undefined> = {
+  en: undefined,
+  hi: "Speak as a native Hindi speaker from India, in a natural conversational podcast register. Pronounce English technical terms the way an Indian speaker says them mid-sentence.",
+};
+
+/**
  * Synthesises each turn, then stitches. Segments are written to a temp
  * directory and removed in a finally block, so a failure partway leaves no
  * orphaned audio behind.
@@ -117,6 +150,7 @@ export async function synthesiseEpisode(
   turns: PodcastTurn[],
   report: ProgressReporter,
   voicePair: VoicePair = DEFAULT_VOICE_PAIR,
+  language: PodcastLanguage = "en",
 ): Promise<{ bytes: Buffer; durationSec: number; turns: PodcastTurn[] }> {
   const tts = ttsProvider();
   const directory = await mkdtemp(join(tmpdir(), "notebook-podcast-"));
@@ -136,6 +170,7 @@ export async function synthesiseEpisode(
         turn.text,
         turn.host === "A" ? "female" : "male",
         voicePair,
+        DELIVERY[language],
       );
       const file = join(directory, `turn-${String(index).padStart(3, "0")}.mp3`);
       await writeFile(file, audio);

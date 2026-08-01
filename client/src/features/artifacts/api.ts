@@ -37,15 +37,19 @@ export function fetchVoicePairs(
   );
 }
 
+/** What the hosts speak, which need not be the language the sources are in. */
+export type PodcastLanguage = "en" | "hi";
+
 export function createPodcast(
   notebookId: string,
   sourceIds: string[],
   lengthMinutes: 3 | 6 | 10,
   voicePair: string,
+  language: PodcastLanguage = "en",
 ): Promise<PodcastDto> {
   return apiFetch<PodcastDto>(`/notebooks/${notebookId}/podcasts`, {
     method: "POST",
-    body: JSON.stringify({ sourceIds, lengthMinutes, voicePair }),
+    body: JSON.stringify({ sourceIds, lengthMinutes, voicePair, language }),
   });
 }
 

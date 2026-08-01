@@ -49,6 +49,16 @@ export type RoadmapModule = {
   pins: RoadmapPin[];
 };
 
+/**
+ * The language the hosts speak.
+ *
+ * It is a property of the episode rather than of the notebook, because the
+ * sources and the conversation about them need not be in the same language:
+ * an English paper is a perfectly good thing to discuss in Hindi, and the
+ * material is read either way.
+ */
+export type PodcastLanguage = "en" | "hi";
+
 export type PodcastTurn = {
   host: "A" | "B";
   text: string;

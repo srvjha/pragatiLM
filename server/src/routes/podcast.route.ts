@@ -17,6 +17,8 @@ const createBody = z.object({
   sourceIds: z.array(z.uuid()).default([]),
   lengthMinutes: z.union([z.literal(3), z.literal(6), z.literal(10)]).default(3),
   voicePair: z.enum(VOICE_PAIR_IDS).default(DEFAULT_VOICE_PAIR),
+  // What the hosts speak, which is not necessarily what the sources are in.
+  language: z.enum(["en", "hi"]).default("en"),
 });
 
 const podcastIdParams = z.object({ notebookId: z.uuid(), podcastId: z.uuid() });
@@ -68,6 +70,7 @@ podcastRouter.post("/", validate({ body: createBody }), (req, res, next) => {
           sourceIds: body.sourceIds,
           lengthMinutes: body.lengthMinutes,
           voicePair: body.voicePair,
+          language: body.language,
         },
         { attempts: 1 },
       );

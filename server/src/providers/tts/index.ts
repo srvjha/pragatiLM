@@ -76,8 +76,24 @@ export const DEFAULT_VOICE_PAIR: VoicePair = "warm";
 
 export interface TtsProvider {
   readonly name: string;
-  synthesise(text: string, voice: Voice, pair?: VoicePair): Promise<Buffer>;
+  synthesise(
+    text: string,
+    voice: Voice,
+    pair?: VoicePair,
+    /** How to say it, for the backends that can be told. */
+    instructions?: string,
+  ): Promise<Buffer>;
 }
+
+/**
+ * Whether this backend understands `instructions`.
+ *
+ * Only OpenAI's steerable speech models take it. Kokoro ignores what it does
+ * not recognise in some builds and rejects it in others, and a field that
+ * fails one turn in thirty is worse than one that is never sent, so it goes
+ * only where it is known to be read.
+ */
+const steerable = () => /^gpt-4o.*-tts$/.test(env.TTS_MODEL);
 
 export class TtsError extends Error {}
 
@@ -99,13 +115,19 @@ export function createTts(): TtsProvider {
 
   return {
     name: env.TTS_BASE_URL ?? "openai",
-    async synthesise(text: string, voice: Voice, pair = DEFAULT_VOICE_PAIR): Promise<Buffer> {
+    async synthesise(
+      text: string,
+      voice: Voice,
+      pair = DEFAULT_VOICE_PAIR,
+      instructions?: string,
+    ): Promise<Buffer> {
       const voices = VOICE_PAIRS[pair] ?? VOICE_PAIRS[DEFAULT_VOICE_PAIR];
 
       const response = await client.audio.speech.create({
         model: env.TTS_MODEL,
         voice: voice === "female" ? voices.female : voices.male,
         input: text,
+        ...(instructions && steerable() ? { instructions } : {}),
         // Every backend here returns mp3 on request, which is what the episode
         // is stitched and stored as. A backend that ignored this and returned
         // wav would still concatenate, but the stored bytes would no longer

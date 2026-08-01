@@ -23,8 +23,19 @@ import { queryKeys } from "@/lib/query-keys";
 import { ApiError } from "@/lib/api-client";
 import { isQueryable } from "@/lib/source-status";
 import type { PodcastDto, PodcastTurn } from "@/types/api";
+import type { PodcastLanguage } from "@/features/artifacts/api";
 
 const lengths = [3, 6, 10] as const;
+
+/**
+ * Each language is named in itself, because the person choosing Hindi reads
+ * Hindi, and "Hindi" written in English is a label about the language rather
+ * than an example of it.
+ */
+const LANGUAGES: { id: PodcastLanguage; label: string }[] = [
+  { id: "en", label: "English" },
+  { id: "hi", label: "हिन्दी" },
+];
 
 /** FR-7. Episodes with the script beside the player, so what was said is checkable. */
 export function PodcastPanel({ notebookId }: { notebookId: string }) {
@@ -49,12 +60,14 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
       minutes: (typeof lengths)[number];
       sourceIds: string[];
       voicePair: string;
+      language: PodcastLanguage;
     }) =>
       api.createPodcast(
         notebookId,
         options.sourceIds,
         options.minutes,
         options.voicePair,
+        options.language,
       ),
     onSuccess: (created) => {
       toast.success("Writing the script...");
@@ -605,11 +618,13 @@ function CreateDialog({
     minutes: (typeof lengths)[number];
     sourceIds: string[];
     voicePair: string;
+    language: PodcastLanguage;
   }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [minutes, setMinutes] = useState<(typeof lengths)[number]>(3);
   const [voicePair, setVoicePair] = useState("warm");
+  const [language, setLanguage] = useState<PodcastLanguage>("en");
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
 
   // Fetched rather than hardcoded, so the options and the values the API
@@ -694,6 +709,26 @@ function CreateDialog({
           </div>
         </Fieldset>
 
+        <Fieldset label="Language">
+          <div className="flex gap-2">
+            {LANGUAGES.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setLanguage(option.id)}
+                className={cn(
+                  "flex-1 rounded-md border py-2.5 text-sm transition-colors",
+                  language === option.id
+                    ? "border-primary bg-accent"
+                    : "hover:bg-accent/50",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </Fieldset>
+
         <Fieldset label={`Sources (${chosen.length} of ${sources.length})`}>
           <div className="max-h-40 space-y-1 overflow-y-auto">
             {sources.map((source) => (
@@ -735,6 +770,7 @@ function CreateDialog({
                     ? []
                     : chosen.map((s) => s.id),
                 voicePair,
+                language,
               });
               setOpen(false);
             }}
