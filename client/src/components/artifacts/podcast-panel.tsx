@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AudioLines, Loader2 } from "lucide-react";
+import { AudioLines, Loader2, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,7 +22,7 @@ import { useSources } from "@/features/sources/hooks";
 import { queryKeys } from "@/lib/query-keys";
 import { ApiError } from "@/lib/api-client";
 import { isQueryable } from "@/lib/source-status";
-import type { PodcastDto } from "@/types/api";
+import type { PodcastDto, PodcastTurn } from "@/types/api";
 
 const lengths = [3, 6, 10] as const;
 
@@ -130,31 +130,20 @@ function EpisodeRow({
   notebookId: string;
   episode: PodcastDto;
 }) {
-  const [showScript, setShowScript] = useState(false);
   const working = episode.status === "QUEUED" || episode.status === "RUNNING";
+  const turns = episode.script ?? [];
 
   return (
     <li className="rounded-lg border p-3">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{episode.title}</p>
-          <p className="text-muted-foreground text-xs">
-            {new Date(episode.createdAt).toLocaleDateString()}
-            {episode.durationSec
-              ? ` · ${formatDuration(episode.durationSec)}`
-              : ""}
-          </p>
-        </div>
-
-        {episode.script && episode.script.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowScript((open) => !open)}
-          >
-            {showScript ? "Hide script" : "Script"}
-          </Button>
-        )}
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium">{episode.title}</p>
+        <p className="text-muted-foreground font-mono text-[0.7rem]">
+          {new Date(episode.createdAt).toLocaleDateString()}
+          {episode.durationSec
+            ? ` \u00b7 ${formatDuration(episode.durationSec)}`
+            : ""}
+          {turns.length > 0 ? ` \u00b7 ${turns.length} turns` : ""}
+        </p>
       </div>
 
       {/* FR-7.3: the stage shown is the stage the job is in, not an animation. */}
@@ -180,39 +169,292 @@ function EpisodeRow({
       )}
 
       {episode.status === "READY" && (
-        <audio
-          controls
-          preload="none"
-          className="mt-2 w-full"
+        <Episode
           src={api.podcastAudioUrl(notebookId, episode.id)}
-        >
-          Your browser cannot play audio.
-        </audio>
+          turns={turns}
+          durationSec={episode.durationSec ?? 0}
+        />
       )}
 
-      {showScript && episode.script && (
+      {/* An episode still being made already has its script, and reading it is
+          the only thing there is to do while the voices are recorded. */}
+      {working && turns.length > 0 && (
         <ol className="mt-3 space-y-2 border-t pt-3">
-          {episode.script.map((turn, index) => (
-            <li key={index} className="flex gap-2 text-xs">
-              <span
-                className={cn(
-                  "shrink-0 font-medium",
-                  // The two hosts need to be told apart, not coloured in.
-                  // Weight and the chart tokens do it inside the palette;
-                  // emerald and sky came from outside it.
-                  turn.host === "A"
-                    ? "text-[var(--color-chart-1)]"
-                    : "text-[var(--color-chart-2)]",
-                )}
-              >
-                {turn.host === "A" ? "Host A" : "Host B"}
-              </span>
-              <span className="text-muted-foreground flex-1 leading-relaxed">
-                {turn.text}
-              </span>
-            </li>
+          {turns.map((turn, index) => (
+            <Turn key={index} turn={turn} />
           ))}
         </ol>
+      )}
+    </li>
+  );
+}
+
+/**
+ * The player and the transcript, which are one thing rather than two.
+ *
+ * The transcript is no longer behind a toggle: a spoken conversation you cannot
+ * read along with is a black box, and the whole claim of this feature is that
+ * what was said is checkable. So it is always there, the line being spoken is
+ * marked as it is spoken, and any line can be clicked to hear it.
+ */
+function Episode({
+  src,
+  turns,
+  durationSec,
+}: {
+  src: string;
+  turns: PodcastTurn[];
+  durationSec: number;
+}) {
+  const audio = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [at, setAt] = useState(0);
+  const [total, setTotal] = useState(durationSec);
+  const [rate, setRate] = useState(1);
+
+  const { spans, measured } = useTurnSpans(turns, total);
+  const current = spans.findIndex((span) => at >= span.start && at < span.end);
+
+  const seek = useCallback((seconds: number) => {
+    const element = audio.current;
+    if (!element) return;
+
+    element.currentTime = seconds;
+    setAt(seconds);
+    void element.play().catch(() => undefined);
+  }, []);
+
+  function toggle() {
+    const element = audio.current;
+    if (!element) return;
+
+    if (element.paused) void element.play().catch(() => undefined);
+    else element.pause();
+  }
+
+  function changeRate() {
+    const next = rate === 1 ? 1.25 : rate === 1.25 ? 1.5 : rate === 1.5 ? 2 : 1;
+    setRate(next);
+    if (audio.current) audio.current.playbackRate = next;
+  }
+
+  const elapsed = Math.floor(at);
+  const remaining = Math.max(0, Math.floor(total) - elapsed);
+
+  return (
+    <div className="mt-3">
+      <audio
+        ref={audio}
+        preload="metadata"
+        // The audio lives behind the same session as everything else, but a
+        // media element is not a fetch: it sends no cookie cross origin unless
+        // asked, so the request arrived unauthenticated, the API answered 401
+        // in JSON, and the player reported a format error for what was never
+        // audio in the first place.
+        crossOrigin="use-credentials"
+        src={src}
+        onLoadedMetadata={(event) => {
+          const found = event.currentTarget.duration;
+          if (Number.isFinite(found) && found > 0) setTotal(found);
+        }}
+        onTimeUpdate={(event) => setAt(event.currentTarget.currentTime)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        className="hidden"
+      />
+
+      <div className="bg-card flex items-center gap-3 rounded-lg border p-2.5">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={playing ? "Pause" : "Play"}
+          className="bg-foreground text-background focus-visible:ring-ring flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:outline-none"
+        >
+          {playing ? (
+            <Pause className="size-4 fill-current" />
+          ) : (
+            // Nudged right by a hair: a triangle centred by its bounding box
+            // reads as sitting left of centre.
+            <Play className="size-4 translate-x-px fill-current" />
+          )}
+        </button>
+
+        <div className="min-w-0 flex-1">
+          <input
+            type="range"
+            min={0}
+            max={Math.max(total, 0.1)}
+            step={0.1}
+            value={Math.min(at, total)}
+            onChange={(event) => seek(Number(event.target.value))}
+            aria-label="Seek"
+            className="accent-foreground h-1 w-full cursor-pointer"
+          />
+          <div className="text-muted-foreground mt-1 flex justify-between font-mono text-[0.65rem] tabular-nums">
+            <span>{formatDuration(elapsed)}</span>
+            <span>-{formatDuration(remaining)}</span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={changeRate}
+          aria-label={`Playback speed, currently ${rate} times`}
+          className="text-muted-foreground hover:text-foreground hover:border-foreground/30 focus-visible:ring-ring shrink-0 cursor-pointer rounded border px-1.5 py-0.5 font-mono text-[0.65rem] tabular-nums transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        >
+          {rate}×
+        </button>
+      </div>
+
+      <ol className="mt-3 space-y-1 border-t pt-3">
+        {turns.map((turn, index) => (
+          <Turn
+            key={index}
+            turn={turn}
+            active={index === current}
+            startSec={spans[index]?.start ?? 0}
+            measured={measured}
+            onSeek={seek}
+          />
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/**
+ * Where each turn falls in the episode.
+ *
+ * Synthesis measures every segment and records it, so a recent episode is
+ * exact. Anything made before that was recorded has no timings at all, and
+ * rather than leave those transcripts dead the spans are apportioned by how
+ * much text each turn holds. That is an estimate and drifts, but a transcript
+ * that follows roughly is far more use than one that does not move.
+ */
+function useTurnSpans(turns: PodcastTurn[], total: number) {
+  return useMemo(() => {
+    const measured =
+      turns.length > 0 &&
+      turns.every(
+        (turn) =>
+          typeof turn.startSec === "number" && typeof turn.endSec === "number",
+      );
+
+    if (measured) {
+      return {
+        measured,
+        spans: turns.map((turn) => ({
+          start: turn.startSec ?? 0,
+          end: turn.endSec ?? 0,
+        })),
+      };
+    }
+
+    const characters =
+      turns.reduce((sum, turn) => sum + turn.text.length, 0) || 1;
+    let elapsed = 0;
+
+    return {
+      measured,
+      spans: turns.map((turn) => {
+        const start = elapsed;
+        elapsed += (turn.text.length / characters) * total;
+        return { start, end: elapsed };
+      }),
+    };
+  }, [turns, total]);
+}
+
+function Turn({
+  turn,
+  active = false,
+  startSec,
+  measured = false,
+  onSeek,
+}: {
+  turn: PodcastTurn;
+  active?: boolean;
+  startSec?: number;
+  /** Whether the time shown was measured from the audio or apportioned. */
+  measured?: boolean;
+  onSeek?: (seconds: number) => void;
+}) {
+  const row = useRef<HTMLLIElement>(null);
+
+  // Follows the audio, but only when it has to: scrolling on every tick fights
+  // anyone reading ahead, and `nearest` leaves the page alone while the line is
+  // already on screen.
+  useEffect(() => {
+    if (active)
+      row.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [active]);
+
+  const label = turn.host === "A" ? "Host A" : "Host B";
+  const seekable = onSeek !== undefined && startSec !== undefined;
+
+  const body = (
+    <>
+      <span className="w-16 shrink-0">
+        <span
+          className={cn(
+            "block font-sans text-[0.7rem] font-medium",
+            // The two hosts need to be told apart, not coloured in. Weight and
+            // the chart tokens do it inside the palette; emerald and sky came
+            // from outside it.
+            turn.host === "A"
+              ? "text-[var(--color-chart-1)]"
+              : "text-[var(--color-chart-2)]",
+          )}
+        >
+          {label}
+        </span>
+        {/* A position in the episode is a locator, and every locator in this
+            product is set in mono: a page number, a video timestamp, a citation
+            marker. Shown only when it was measured from the audio, because an
+            apportioned guess printed to the second would be claiming a
+            precision it does not have. */}
+        {measured && startSec !== undefined && (
+          <span className="text-muted-foreground block font-mono text-[0.62rem] tabular-nums">
+            {formatDuration(Math.floor(startSec))}
+          </span>
+        )}
+      </span>
+      <span
+        className={cn(
+          "flex-1 font-serif text-[0.82rem] leading-relaxed",
+          active ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
+        {turn.text}
+      </span>
+    </>
+  );
+
+  return (
+    <li
+      ref={row}
+      // The marker means the product has matched something, and the line being
+      // spoken right now is exactly that: the place in the transcript the audio
+      // has reached.
+      className={cn(
+        "flex rounded border-l-2 transition-colors",
+        active ? "border-marker bg-accent/40" : "border-transparent",
+        // A line you can click to hear should say so before it is clicked.
+        seekable && !active && "hover:bg-accent/25",
+      )}
+    >
+      {seekable ? (
+        <button
+          type="button"
+          onClick={() => onSeek(startSec)}
+          title={`Play from ${formatDuration(Math.floor(startSec))}`}
+          className="focus-visible:ring-ring flex flex-1 cursor-pointer gap-2 rounded py-1 pl-2 text-left focus-visible:ring-2 focus-visible:outline-none"
+        >
+          {body}
+        </button>
+      ) : (
+        <div className="flex flex-1 gap-2 py-1 pl-2">{body}</div>
       )}
     </li>
   );
