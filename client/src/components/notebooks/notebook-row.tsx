@@ -81,18 +81,22 @@ export function NotebookRow({
     <li>
       <div
         className={cn(
-          "group relative flex items-center gap-1 rounded-lg pr-1 pl-2 transition-colors",
+          "group relative flex items-center gap-1 overflow-hidden rounded-lg pr-1 pl-3 transition-colors",
           active ? "bg-accent" : "hover:bg-accent/60",
           pending && "opacity-60",
         )}
       >
         {/* The marker is the one place in the rail it is allowed: it marks the
             notebook currently open, which is the product having matched
-            something, not decoration. */}
+            something, not decoration.
+
+            Full height and flush with the card, clipped by its radius. Floated
+            off the edge with its own rounding it read as a stray tick sitting
+            near the row rather than as the row being marked. */}
         {active && (
           <span
             aria-hidden
-            className="bg-marker absolute inset-y-2 left-0 w-[3px] rounded-full"
+            className="bg-marker absolute inset-y-0 left-0 w-[3px]"
           />
         )}
 
