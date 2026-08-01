@@ -36,6 +36,18 @@ const optionalString = z.preprocess((value) => {
 /** A required string, with the same quote tolerance. */
 const requiredString = z.preprocess(unquote, z.string().min(1));
 
+/**
+ * An optional enum that reads a blank value as unset, exactly as
+ * `optionalString` does. Without this a variable shipped empty in
+ * `.env.example` fails validation at boot, which is the opposite of what
+ * shipping it empty is for.
+ */
+const optionalEnum = <const T extends readonly [string, ...string[]]>(values: T) =>
+  z.preprocess((value) => {
+    const cleaned = unquote(value);
+    return typeof cleaned === "string" && cleaned === "" ? undefined : cleaned;
+  }, z.enum(values).optional());
+
 const port = z.coerce.number().int().positive().max(65535);
 const positiveInt = z.coerce.number().int().positive();
 const nonNegativeInt = z.coerce.number().int().nonnegative();
@@ -163,7 +175,7 @@ const schema = z.object({
   // product offers are named the same either way; only the voices differ.
   // Left unset it follows TTS_PROVIDER, which is right except when pointing
   // the OpenAI-shaped client at Kokoro.
-  TTS_VOICES: z.enum(["openai", "kokoro", "sarvam"]).optional(),
+  TTS_VOICES: optionalEnum(["openai", "kokoro", "sarvam"]),
   // Optional override for the "warm" pair alone, so a deployment that pinned
   // these two before the backend was configurable keeps the voices it had.
   TTS_VOICE_FEMALE: optionalString,
