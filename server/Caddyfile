@@ -1,0 +1,39 @@
+# The only thing on this machine the internet can reach.
+#
+# Caddy obtains and renews the Let's Encrypt certificate itself — there is no
+# certbot, no renewal cron and no expiry to remember. That is the whole reason
+# it is here rather than nginx.
+#
+# HTTPS is not decoration for this app. The front end is served from Vercel
+# over https, and a page loaded over https may not call an http API: the
+# browser blocks it before the request leaves. The session cookie has the same
+# requirement from the other direction — it is marked Secure, and browsers
+# discard a Secure cookie that arrives over http. Either one alone would mean
+# nobody can sign in.
+
+backend-pragati.srvjha.in {
+	# The API is not published to the host at all; this name resolves on the
+	# compose network.
+	reverse_proxy api:4000 {
+		# Server-sent events carry the answer as it is generated. Without
+		# this, Caddy buffers the response and the whole point of streaming
+		# is lost: the reader waits, sees nothing, then gets everything.
+		flush_interval -1
+	}
+
+	# Uploads are capped at MAX_UPLOAD_MB in the app; this is the same limit a
+	# little higher, so an oversized file is refused by the app with a readable
+	# message rather than cut off by the proxy with none.
+	request_body {
+		max_size 60MB
+	}
+
+	encode gzip
+
+	log {
+		output file /data/access.log {
+			roll_size 10MB
+			roll_keep 5
+		}
+	}
+}

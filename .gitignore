@@ -16,6 +16,9 @@ playwright-report/
 .env
 .env.*
 !.env.example
+# Templates carry no values, only the shape of the file and why each line is
+# there, so they belong in the repo like .env.example does.
+!.env.production.example
 
 # Installed agent skills. These come from an upstream toolkit rather than from
 # this project, are refreshed by their own installer, and would otherwise put
