@@ -69,7 +69,12 @@ export function CitationChips({
                   <button
                     type="button"
                     onClick={() => onCite(citation)}
-                    className="group bg-card hover:border-foreground/30 hover:bg-accent focus-visible:ring-ring flex max-w-64 cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                    // Grows to fill the row rather than truncating at a fixed
+                    // width: two chips share a line when their titles are
+                    // short, and a long title takes the line to itself instead
+                    // of being cut back to "AI Agentic Memory S...", which
+                    // told the reader nothing about which source it opened.
+                    className="group bg-card hover:border-foreground/30 hover:bg-accent focus-visible:ring-ring flex max-w-full min-w-0 grow basis-60 cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none"
                   >
                     <span className="text-muted-foreground shrink-0 font-mono text-[10px] font-medium">
                       {citation.markerIndex}

@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { AnswerMarkdown } from "./markdown";
 import { PhaseIndicator } from "./phase-indicator";
@@ -164,6 +165,18 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
     (message) => message.status !== "streaming" || message.content.length > 0,
   );
 
+  /**
+   * The transcript is only refetched once an answer has finished, so between
+   * the last token and that refetch landing there was a moment with neither a
+   * live answer nor a persisted one, and the answer just written blinked out
+   * of the page. The streamed copy stays on screen until the real row it
+   * belongs to has arrived to replace it.
+   */
+  const landed = state.messageId
+    ? persisted.some((message) => message.id === state.messageId)
+    : false;
+  const live = state.streaming || (state.content.length > 0 && !landed);
+
   return (
     <div className="flex h-full flex-col">
       {/* Only once there is something to clear. An empty transcript with a
@@ -201,7 +214,10 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
           <button
             type="button"
             onClick={jumpToLatest}
-            className="bg-foreground text-background motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
+            // Chrome floating over the transcript, so it is built like chrome:
+            // a card on the paper rather than a high contrast slab, which was
+            // covering the very line the reader had scrolled back to find.
+            className="bg-card/90 text-foreground border-border motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 hover:bg-accent absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-md backdrop-blur-sm transition-colors"
           >
             <ArrowDown className="size-3.5" />
             Jump to latest
@@ -213,8 +229,12 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
           onScroll={onScroll}
           className="h-full overflow-y-auto"
         >
-          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
-            {persisted.length === 0 && !state.streaming && (
+          {/* Narrower than the panel on purpose. The answer is set in the
+              reading face at reading size, and a line of it running the full
+              width of a wide column is too long to track back from the end of
+              one line to the start of the next. */}
+          <div className="mx-auto flex max-w-[38rem] flex-col gap-8 px-4 py-6">
+            {persisted.length === 0 && !live && (
               <EmptyState
                 canAsk={canAsk}
                 sourceCount={sources?.length ?? 0}
@@ -234,18 +254,25 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
               />
             ))}
 
-            {state.streaming && (
-              <div className="flex flex-col gap-2">
+            {/* The question, before the transcript has it. Pressing enter used
+                to clear the composer and show nothing at all until the answer
+                had finished, so for the length of a retrieval there was no
+                sign anywhere on the page of what had been asked. */}
+            {live && lastAsked && <QuestionBubble text={lastAsked} />}
+
+            {live && (
+              <div className="flex flex-col gap-3">
                 <PhaseIndicator phase={state.phase} />
-                {state.content.length > 0 && (
-                  <div className="text-sm">
-                    <AnswerMarkdown
-                      content={state.content}
-                      citations={state.citations}
-                      onCite={openCitation}
-                    />
-                    <span className="bg-foreground ml-0.5 inline-block h-4 w-1.5 animate-pulse align-text-bottom" />
-                  </div>
+
+                {state.content.length > 0 ? (
+                  <AnswerMarkdown
+                    content={state.content}
+                    citations={state.citations}
+                    onCite={openCitation}
+                    caret={state.streaming}
+                  />
+                ) : (
+                  state.phase.kind === "generating" && <AnswerSkeleton />
                 )}
               </div>
             )}
@@ -276,7 +303,9 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
       </div>
 
       <div className="bg-background/80 border-t p-3 backdrop-blur-sm">
-        <div className="mx-auto max-w-3xl">
+        {/* Same measure as the transcript, so the composer sits under the
+            column it belongs to rather than spanning past it. */}
+        <div className="mx-auto max-w-[38rem]">
           <div className="relative">
             <Textarea
               value={draft}
@@ -353,6 +382,37 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
   );
 }
 
+/**
+ * The question is the person speaking, so it stays in the interface face and is
+ * bounded like a card. The answer below it is the material, set in the reading
+ * face and given the full column: the contrast between the two is what tells
+ * the two voices apart, rather than a pair of facing bubbles.
+ */
+function QuestionBubble({ text }: { text: string }) {
+  return (
+    <div className="flex justify-end">
+      <div className="bg-secondary border-border max-w-[85%] rounded-lg rounded-br-[2px] border px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap">
+        {text}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The gap between "retrieval finished" and the first token is dead air of a
+ * second or two, and an empty column there reads as a stall. Three ruled lines
+ * at the answer's own measure say the shape of what is coming.
+ */
+function AnswerSkeleton() {
+  return (
+    <div aria-hidden className="flex flex-col gap-2.5 py-1">
+      <Skeleton className="h-3.5 w-full rounded-sm" />
+      <Skeleton className="h-3.5 w-[92%] rounded-sm" />
+      <Skeleton className="h-3.5 w-[64%] rounded-sm" />
+    </div>
+  );
+}
+
 function MessageBubble({
   message,
   ungrounded = false,
@@ -362,38 +422,24 @@ function MessageBubble({
   ungrounded?: boolean;
   onCite: (citation: CitationDto) => void;
 }) {
-  if (message.role === "user") {
-    return (
-      <div className="flex justify-end">
-        <div className="bg-accent max-w-[85%] rounded-2xl rounded-br-sm px-4 py-2 text-sm">
-          {message.content}
-        </div>
-      </div>
-    );
-  }
+  if (message.role === "user") return <QuestionBubble text={message.content} />;
 
   return (
-    <div className="group/answer flex flex-col gap-2">
+    <div className="group/answer flex flex-col">
       {message.status === "error" ? (
         <p className="text-destructive text-sm">
           {message.content || "This answer failed."}
         </p>
       ) : (
-        <>
-          <AnswerMarkdown
-            content={message.content}
-            citations={message.citations}
-            onCite={onCite}
-          />
-          {/* Revealed on hover rather than always present, because a row of
-              controls under every answer competes with the answers. It stays
-              reachable by keyboard regardless of the pointer. */}
-          <CopyAnswer text={message.content} />
-        </>
+        <AnswerMarkdown
+          content={message.content}
+          citations={message.citations}
+          onCite={onCite}
+        />
       )}
 
       {message.status === "stopped" && (
-        <p className="text-muted-foreground text-xs italic">
+        <p className="text-muted-foreground mt-2 text-xs italic">
           Stopped before finishing.
         </p>
       )}
@@ -401,13 +447,19 @@ function MessageBubble({
       {/* The PRD's post generation check: an answer the grader could not
           support is flagged rather than silently trusted. */}
       {ungrounded && (
-        <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
-          <AlertTriangle className="size-3" />
+        <p className="border-border text-muted-foreground mt-3 flex items-start gap-1.5 border-l-2 py-0.5 pl-2.5 text-xs">
+          <AlertTriangle className="mt-px size-3 shrink-0" />
           This answer may go beyond what the sources support.
         </p>
       )}
 
       <CitationChips citations={message.citations} onCite={onCite} />
+
+      {/* Under the sources rather than above them, because the sources are part
+          of the answer and the controls are not. Dimmed rather than hidden: a
+          control that only exists on hover cannot be found on a touch screen,
+          and fading it in place costs no layout. */}
+      {message.status !== "error" && <CopyAnswer text={message.content} />}
     </div>
   );
 }
@@ -431,11 +483,11 @@ function CopyAnswer({ text }: { text: string }) {
   if (text.trim().length === 0) return null;
 
   return (
-    <div className="flex opacity-0 transition-opacity group-hover/answer:opacity-100 focus-within:opacity-100">
+    <div className="mt-2 flex opacity-45 transition-opacity group-hover/answer:opacity-100 focus-within:opacity-100">
       <Button
         variant="ghost"
         size="xs"
-        className="text-muted-foreground hover:text-foreground gap-1.5"
+        className="text-muted-foreground hover:text-foreground -ml-2 gap-1.5"
         aria-label={copied ? "Answer copied" : "Copy this answer"}
         onClick={() => {
           navigator.clipboard
