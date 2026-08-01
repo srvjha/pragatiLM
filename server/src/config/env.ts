@@ -139,10 +139,11 @@ const schema = z.object({
   COHERE_API_KEY: optionalString,
   RERANK_ENABLED: booleanish.default(true),
 
-  TTS_PROVIDER: z.enum(["openai", "elevenlabs"]).default("openai"),
+  // The named half of the "warm" voice pair. The other pairs are fixed in the
+  // TTS provider, because what matters in a two host format is that the two
+  // voices are distinguishable from each other.
   TTS_VOICE_FEMALE: z.string().default("nova"),
   TTS_VOICE_MALE: z.string().default("onyx"),
-  ELEVENLABS_API_KEY: optionalString,
 
   CHUNK_TARGET_TOKENS: positiveInt.default(900),
   CHUNK_OVERLAP_TOKENS: nonNegativeInt.default(150),

@@ -2,9 +2,10 @@ import OpenAI from "openai";
 import { env } from "@/config/env";
 
 /**
- * Text to speech behind an interface, so swapping OpenAI for ElevenLabs touches
- * this file alone. Two voices, because the podcast is a two host conversation
- * and distinguishing the speakers is the whole point of the format.
+ * Text to speech behind an interface, so swapping the service that speaks the
+ * words touches this file alone. Two voices, because the podcast is a two host
+ * conversation and distinguishing the speakers is the whole point of the
+ * format.
  */
 export type Voice = "female" | "male";
 
