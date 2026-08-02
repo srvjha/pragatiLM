@@ -53,7 +53,76 @@ dig +short backend-pragati.srvjha.in
 
 ---
 
-## 2. The machine
+## 2. Getting in
+
+The provider hands over `root` and a password. That combination on a public IP
+is the one part of this setup that is attacked without being provoked: bots
+sweep the whole address space for port 22, and `root` is the one username that
+certainly exists, so half the guess is free. A new machine typically starts
+seeing attempts within hours of being provisioned, before anything is deployed
+on it.
+
+A key ends that. The private half never leaves the laptop — the server sends a
+challenge, the laptop answers it, and the secret itself is never transmitted.
+There is no password left to guess.
+
+**Check whether you already have one.** Most machines do, and a second key
+solves nothing:
+
+```bash
+ls ~/.ssh/*.pub
+```
+
+If that prints `id_ed25519.pub`, use it. Only if there is nothing:
+
+```bash
+ssh-keygen -t ed25519 -C "your@email"
+```
+
+Accept the default path. A passphrase is worth setting — it is what protects
+the key if the laptop is lost — and macOS will remember it in the keychain
+after the first use.
+
+**Install the public half.** Either paste the output of
+
+```bash
+cat ~/.ssh/id_ed25519.pub
+```
+
+into the provider's control panel (Contabo takes keys there after the server
+exists, not only at checkout), or push it from here:
+
+```bash
+ssh-copy-id root@<vps-ip>
+```
+
+Only the `.pub` file is ever copied anywhere. The file without the extension
+stays put; anyone holding it holds the server.
+
+**Verify before locking the door.** In a second terminal, leaving the first
+one connected:
+
+```bash
+ssh root@<vps-ip>
+```
+
+It should let you in without asking for a password. Once it does, and not
+before:
+
+```bash
+sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo systemctl restart ssh
+```
+
+The open session is the safety line. If the key turns out not to work and
+passwords are already off, the way back in is the provider's rescue console or
+a reinstall — so confirm the new way works while the old one is still there.
+
+Everything below runs over that connection.
+
+---
+
+## 3. The machine
 
 As root, once:
 
@@ -62,6 +131,16 @@ adduser deploy && usermod -aG sudo deploy
 curl -fsSL https://get.docker.com | sh
 usermod -aG docker deploy
 ```
+
+Give `deploy` the same key, or it has no way in at all now that passwords are
+off — a new account starts with an empty `authorized_keys`:
+
+```bash
+rsync --archive --chown=deploy:deploy ~/.ssh /home/deploy/
+```
+
+Then `ssh deploy@<vps-ip>` from the laptop, and stop using `root` for anything
+that is not this section.
 
 Then the firewall. Only three ways in: SSH, and the two ports Caddy needs.
 
@@ -77,7 +156,7 @@ other on a private network; the host does not publish them.
 
 ---
 
-## 3. The code and its configuration
+## 4. The code and its configuration
 
 As `deploy`:
 
@@ -115,7 +194,7 @@ by hand.
 
 ---
 
-## 4. Start it
+## 5. Start it
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
@@ -134,7 +213,7 @@ docker compose -f docker-compose.prod.yml logs -f api worker
 
 ---
 
-## 5. Check it works
+## 6. Check it works
 
 ```bash
 curl https://backend-pragati.srvjha.in/api/health
@@ -149,7 +228,7 @@ If the certificate has not appeared, it is almost always DNS: `docker compose
 
 ---
 
-## 6. The front end
+## 7. The front end
 
 On Vercel, set the environment variable:
 
@@ -169,7 +248,7 @@ The callback is built from `BETTER_AUTH_URL`, so it must match exactly.
 
 ---
 
-## 7. Backups
+## 8. Backups
 
 The one thing here that cannot be rebuilt is Postgres: Redis holds only jobs in
 flight, and Qdrant's vectors are regenerated from the chunks in Postgres
@@ -234,6 +313,12 @@ say the database. Plain `down` is safe.
 ---
 
 ## When something is wrong
+
+**SSH asks for a password that no longer works.** Password authentication was
+turned off before the key was in place, or the key went to `root` and the
+login is as `deploy`. The provider's rescue console or VNC is the way back in;
+from there, put the public key in that user's `~/.ssh/authorized_keys`,
+`chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys`, and try again.
 
 **The API restarts in a loop.** Usually configuration: the app validates its
 whole environment at boot and refuses to start on anything missing, naming it.
