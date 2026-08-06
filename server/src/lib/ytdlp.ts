@@ -91,6 +91,15 @@ export async function fetchCaptionsInLanguage(url: string, language: string): Pr
     await run(
       binary(),
       [
+        // YouTube now gates the caption URLs behind a JavaScript challenge, and
+        // yt-dlp needs a runtime to solve it. Without one it quietly degrades to
+        // a player client that can still *list* the tracks but not fetch them,
+        // so the run succeeds, writes nothing, and looks like a video with no
+        // captions. Node is the runtime rather than yt-dlp's default of deno
+        // because this process is Node: it is guaranteed present, with nothing
+        // added to the image.
+        "--js-runtimes",
+        "node",
         "--write-subs",
         "--write-auto-subs",
         "--sub-langs",
@@ -109,7 +118,11 @@ export async function fetchCaptionsInLanguage(url: string, language: string): Pr
 
     return await readCues(directory);
   } catch (error) {
-    log.debug({ err: error, language }, "no captions in this language");
+    // Warn rather than debug. This is the only route to YouTube captions that
+    // works, so when it fails the reason is the whole diagnosis — and at debug
+    // it is invisible in production, which leaves the caller reporting a
+    // generic "no captions" for a cause nobody can see.
+    log.warn({ err: error, language }, "no captions in this language");
     return [];
   } finally {
     await rm(directory, { recursive: true, force: true }).catch(() => undefined);
