@@ -124,23 +124,27 @@ Everything below runs over that connection.
 
 ## 3. The machine
 
-As root, once:
+As root, once. The account name is yours to pick — `deploy` says what it is for
+rather than who it belongs to, which matters only if someone else ever works on
+this. Substitute it throughout if you choose otherwise:
 
 ```bash
-adduser deploy && usermod -aG sudo deploy
+USER=deploy
+adduser $USER && usermod -aG sudo $USER
 curl -fsSL https://get.docker.com | sh
-usermod -aG docker deploy
+usermod -aG docker $USER
 ```
 
-Give `deploy` the same key, or it has no way in at all now that passwords are
-off — a new account starts with an empty `authorized_keys`:
+Give it the same key, or it has no way in at all now that passwords are off — a
+new account starts with an empty `authorized_keys`:
 
 ```bash
-rsync --archive --chown=deploy:deploy ~/.ssh /home/deploy/
+rsync --archive --chown=$USER:$USER ~/.ssh /home/$USER/
 ```
 
-Then `ssh deploy@<vps-ip>` from the laptop, and stop using `root` for anything
-that is not this section.
+Then `ssh $USER@<vps-ip>` from the laptop, and stop using `root` for anything
+that is not this section. What follows assumes that account's home directory,
+so the one place the name is load bearing is the backup cron in section 8.
 
 Then the firewall. Only three ways in: SSH, and the two ports Caddy needs.
 
@@ -158,7 +162,7 @@ other on a private network; the host does not publish them.
 
 ## 4. The code and its configuration
 
-As `deploy`:
+As that user, not root:
 
 ```bash
 git clone https://github.com/srvjha/pragatiLM.git
@@ -259,11 +263,12 @@ crontab -e
 ```
 
 ```cron
-0 3 * * * cd /home/deploy/pragatiLM/server && CONTAINER=pragati-postgres-1 ./scripts/backup-db.sh >> /var/log/dochat-backup.log 2>&1
+0 3 * * * cd ~/pragatiLM/server && CONTAINER=pragati-postgres-1 ./scripts/backup-db.sh >> ~/backup.log 2>&1
 ```
 
-Check the container name first with `docker ps`; compose prefixes it with the
-project name.
+`~` rather than a spelled-out home directory, so the line does not care what the
+account is called. Check the container name first with `docker ps`; compose
+prefixes it with the project name.
 
 A copy that lives only on the machine being backed up protects against a
 dropped table and nothing worse. Install `rclone`, run `rclone config` once for
