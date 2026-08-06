@@ -75,19 +75,22 @@ export const liveYoutubeClient: YoutubeClient = {
     // simply false: a video with a caption track was reported as having
     // captions disabled, which sent people looking for a setting to change on
     // a video they may not even own.
-    const tracks = info.captions?.caption_tracks ?? [];
-
-    if (tracks.length === 0) {
-      throw new ExtractionError(
-        "This video has no captions. Upload a VTT or SRT transcript for it instead.",
-      );
-    }
-
+    // Read before the checks below, not after, so every failure from here on can
+    // carry it: a row that fails still gets to be called what it is.
     const title = info.basic_info.title ?? `YouTube video ${videoId}`;
     const extras = {
       ...(info.basic_info.author ? { author: info.basic_info.author } : {}),
       ...(info.basic_info.duration ? { durationSec: info.basic_info.duration } : {}),
     };
+
+    const tracks = info.captions?.caption_tracks ?? [];
+
+    if (tracks.length === 0) {
+      throw new ExtractionError(
+        "This video has no captions. Upload a VTT or SRT transcript for it instead.",
+        { title },
+      );
+    }
 
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     const available: CaptionTrack[] = tracks
@@ -160,6 +163,7 @@ export const liveYoutubeClient: YoutubeClient = {
           (installed
             ? "Fetching them another way also failed, which usually means YouTube is rate limiting this machine. Wait a few minutes and press Retry, or add the transcript as a VTT or SRT source."
             : "Installing yt-dlp on the server lets this work automatically. Until then, download the transcript yourself and add it here as a VTT or SRT source."),
+        { title },
       );
     }
 
@@ -176,6 +180,7 @@ export const liveYoutubeClient: YoutubeClient = {
     if (cues.length === 0) {
       throw new ExtractionError(
         "This video has no caption track. Upload a VTT or SRT transcript for it instead.",
+        { title },
       );
     }
 

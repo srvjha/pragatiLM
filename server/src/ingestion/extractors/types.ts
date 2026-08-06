@@ -50,8 +50,22 @@ export interface Extractor {
  * for a log.
  */
 export class ExtractionError extends Error {
-  constructor(message: string) {
+  /**
+   * What the source turned out to be called, when extraction got far enough to
+   * learn it before failing.
+   *
+   * A YouTube row is created before anything has fetched the video, so it starts
+   * out named after its own id. The name arrives in the same response as the
+   * caption track list, which means a video whose captions YouTube then refuses
+   * to hand over knows its title perfectly well and used to throw it away —
+   * leaving the failed row reading "YouTube video 4HqpvUtK00g" next to an error
+   * about captions. The id is no help to anyone deciding whether to retry.
+   */
+  readonly title?: string;
+
+  constructor(message: string, options?: { title?: string }) {
     super(message);
     this.name = "ExtractionError";
+    if (options?.title) this.title = options.title;
   }
 }

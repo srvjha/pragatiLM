@@ -45,20 +45,7 @@ export async function runIngestion(sourceId: string, reindex = false): Promise<I
     return expandPlaylist(source, extracted.siblings);
   }
 
-  // The extractor is the first thing that knows what a source is actually
-  // called: a YouTube URL is added before anything has fetched the video, so
-  // the row starts life named after its own id. Renaming it here is the only
-  // moment the real title is known.
-  //
-  // A title the person chose is never overwritten. `renamed` is set when they
-  // edit it, so a deliberate name survives a re-index.
-  let title = source.title;
-
-  if (extracted.title && !source.renamed && extracted.title !== source.title) {
-    await updateSource(source.notebookId, source.id, { title: extracted.title });
-    title = extracted.title;
-    log.info({ sourceId: source.id, title: extracted.title }, "named the source from its content");
-  }
+  const title = await nameFromContent(source, extracted.title);
 
   // Every extractor has always returned this and nothing ever stored it, so
   // the column held `{}` for every source ever ingested. It is not decoration:
@@ -197,6 +184,25 @@ async function translateForSearch(source: Source, chunks: Chunk[]): Promise<Chun
   }
 }
 
+/**
+ * Renames the row to what the content turned out to be called, and returns the
+ * name to use from here on.
+ *
+ * The extractor is the first thing that knows: a YouTube URL is added before
+ * anything has fetched the video, so the row starts life named after its own id.
+ *
+ * A title the person chose is never overwritten. `renamed` is set when they edit
+ * it, so a deliberate name survives a re-index.
+ */
+async function nameFromContent(source: Source, extracted: string | undefined): Promise<string> {
+  if (!extracted || source.renamed || extracted === source.title) return source.title;
+
+  await updateSource(source.notebookId, source.id, { title: extracted });
+  log.info({ sourceId: source.id, title: extracted }, "named the source from its content");
+
+  return extracted;
+}
+
 async function extract(source: Source) {
   await setSourceStatus({
     sourceId: source.id,
@@ -209,22 +215,33 @@ async function extract(source: Source) {
   const stored = await getFile(source.id, "original");
   const extractor = extractorFor(source.type);
 
-  const result = await extractor.extract({
-    sourceId: source.id,
-    notebookId: source.notebookId,
-    originalUrl: source.originalUrl,
-    title: source.title,
-    ...(stored ? { bytes: stored.bytes } : {}),
-    onProgress: (stage, progress) =>
-      setSourceStatus({
-        sourceId: source.id,
-        notebookId: source.notebookId,
-        status: "EXTRACTING",
-        statusStage: stage,
-        // Extraction owns the first 40 percent of the bar.
-        progress: Math.round(progress * 0.4),
-      }),
-  });
+  let result;
+  try {
+    result = await extractor.extract({
+      sourceId: source.id,
+      notebookId: source.notebookId,
+      originalUrl: source.originalUrl,
+      title: source.title,
+      ...(stored ? { bytes: stored.bytes } : {}),
+      onProgress: (stage, progress) =>
+        setSourceStatus({
+          sourceId: source.id,
+          notebookId: source.notebookId,
+          status: "EXTRACTING",
+          statusStage: stage,
+          // Extraction owns the first 40 percent of the bar.
+          progress: Math.round(progress * 0.4),
+        }),
+    });
+  } catch (error) {
+    // A source that failed still deserves its name. The failure is what the
+    // person is looking at, and deciding whether to retry it, so an id where the
+    // title should be is the least useful thing to show them.
+    if (error instanceof ExtractionError) {
+      await nameFromContent(source, error.title);
+    }
+    throw error;
+  }
 
   // The captured reader view is what the web viewer renders later.
   if (result.captured) {
