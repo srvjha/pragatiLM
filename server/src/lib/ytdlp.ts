@@ -4,6 +4,7 @@ import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseSync } from "subtitle";
+import ffmpegPath from "ffmpeg-static";
 import { env } from "@/config/env";
 import { childLogger } from "@/lib/logger";
 
@@ -100,6 +101,11 @@ export async function fetchCaptionsInLanguage(url: string, language: string): Pr
         // added to the image.
         "--js-runtimes",
         "node",
+        // The SRT conversion below is an ffmpeg postprocessor, and ffmpeg
+        // arrives here through an npm package rather than apt, so it sits in
+        // node_modules and not on PATH. yt-dlp downloads the VTT, then fails
+        // converting it — which reads as a video with no captions.
+        ...(ffmpegPath ? ["--ffmpeg-location", ffmpegPath] : []),
         "--write-subs",
         "--write-auto-subs",
         "--sub-langs",
