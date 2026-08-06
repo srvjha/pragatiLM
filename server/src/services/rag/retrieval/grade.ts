@@ -61,6 +61,8 @@ const GRADER_SYSTEM = [
   "When the question asks for a summary, an overview, the main points, or what a source is about, passages drawn from that material are sufficient by definition. Judge whether they cover the material, not whether any single passage states a summary: the summary is not in the source and is not supposed to be.",
   "Passages in a language other than the question are still evidence. Do not mark a set insufficient for being in another language.",
   "When something is missing, name it and suggest search terms that would find it.",
+  "Search terms must be words the documents would use, drawn from their titles and the passages, never a rephrasing of the asker's question.",
+  "Terms echoing the question back — 'main point', 'the video', 'summary' — retrieve nothing, because no document describes itself that way.",
   "Do not answer the question yourself.",
 ].join(" ");
 
@@ -85,6 +87,7 @@ export async function gradeContext(
   question: string,
   candidates: FusedCandidate[],
   facts: FactBlock[] = [],
+  catalogue: { title: string; type: string }[] = [],
 ): Promise<ContextGrade> {
   if (candidates.length === 0 && facts.length === 0) {
     return {
@@ -113,7 +116,18 @@ export async function gradeContext(
       { role: "system", content: GRADER_SYSTEM },
       {
         role: "user",
-        content: `Question: ${question}\n\nRetrieved:\n${contextForGrading(candidates, facts)}`,
+        content: [
+          catalogue.length > 0
+            ? `Documents being searched:\n${catalogue
+                .slice(0, 20)
+                .map((entry) => `- ${entry.title} (${entry.type.toLowerCase()})`)
+                .join("\n")}`
+            : "",
+          `Question: ${question}`,
+          `Retrieved:\n${contextForGrading(candidates, facts)}`,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       },
     ]);
 

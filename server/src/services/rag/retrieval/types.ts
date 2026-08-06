@@ -43,6 +43,20 @@ export type RetrievalRequest = {
   /** The last few turns, used to resolve a follow up into a standalone question. */
   history?: { role: "user" | "assistant"; content: string }[];
   sourceIds?: string[];
+  /**
+   * What the person is asking about, by name.
+   *
+   * Rewriting and grading were both blind to this, and it is what made them
+   * useless on the questions people actually ask. "Explain the video" cannot be
+   * turned into a searchable query by a model that does not know the video is
+   * called "Why HTTP 2 is faster?" — every rewrite could only reshuffle the same
+   * contentless words, so the vector search had nothing to match and the answer
+   * was a refusal about a video that was indexed and sitting right there.
+   *
+   * Titles are cheap: a handful of short strings that turn "the video" and "the
+   * book" into terms the index actually contains.
+   */
+  catalogue?: { title: string; type: string }[];
 };
 
 export type RoutingDecision = {

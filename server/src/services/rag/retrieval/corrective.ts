@@ -83,7 +83,12 @@ export async function retrieveWithCorrection(
 
   for (let round = 0; round < maxRounds; round += 1) {
     const result = await retrieveOnce(request, extraVariants);
-    const grade = await gradeContext(request.question, result.reranked, result.facts);
+    const grade = await gradeContext(
+      request.question,
+      result.reranked,
+      result.facts,
+      request.catalogue ?? [],
+    );
 
     rounds.push(summarise(result, grade, round));
     await events.onGraded?.(round, grade);

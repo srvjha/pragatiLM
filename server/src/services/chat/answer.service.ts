@@ -51,8 +51,18 @@ export async function answerQuestion(job: AnswerJob): Promise<void> {
 
   const history = await recentTurns(chatId);
 
+  const selectedSet = new Set(selected);
+
   const retrieval = await retrieveWithCorrection(
-    { notebookId, question: content, history, sourceIds: selected },
+    {
+      notebookId,
+      question: content,
+      history,
+      sourceIds: selected,
+      catalogue: ready
+        .filter((source) => selectedSet.has(source.id))
+        .map((source) => ({ title: source.title, type: source.type })),
+    },
     {
       onGraded: (round, grade) =>
         emit(messageId, { event: "grading", data: { round, score: grade.score } }),

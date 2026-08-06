@@ -38,6 +38,10 @@ const variantSchema = z.object({
 const TRANSLATE_SYSTEM = [
   "You prepare search queries for a retrieval system over a user's own documents.",
   "Rewrite the question so it stands alone without the conversation.",
+  "You are given the titles of the documents being searched. Resolve vague references against them:",
+  "'the video', 'this paper', 'the book' mean the matching title, so name it and use its subject matter.",
+  "A query built only from the asker's own words is useless when those words appear nowhere in the documents;",
+  "every query you produce should contain terms the documents themselves would use.",
   "Add one step back question that would retrieve useful background.",
   "Decompose only genuinely compound questions; return an empty array otherwise.",
   "Never answer the question. Produce search queries only.",
@@ -49,6 +53,19 @@ const HYDE_SYSTEM = [
   "Write confidently in a neutral, encyclopedic register.",
   "Do not hedge, do not mention uncertainty, and do not address the reader.",
 ].join(" ");
+
+/** The titles being searched, so a vague reference has something to resolve to. */
+function catalogueText(request: RetrievalRequest): string {
+  const entries = (request.catalogue ?? []).filter((entry) => entry.title.trim());
+  if (entries.length === 0) return "";
+
+  const listed = entries
+    .slice(0, 20)
+    .map((entry) => `- ${entry.title} (${entry.type.toLowerCase()})`)
+    .join("\n");
+
+  return `Documents being searched:\n${listed}`;
+}
 
 function historyText(request: RetrievalRequest): string {
   // FR-3.9: the last four turns are enough to resolve a follow up, and more
@@ -68,9 +85,13 @@ async function generateVariants(request: RetrievalRequest): Promise<QueryVariant
     { role: "system", content: TRANSLATE_SYSTEM },
     {
       role: "user",
-      content: history
-        ? `Conversation so far:\n${history}\n\nCurrent question: ${request.question}`
-        : request.question,
+      content: [
+        catalogueText(request),
+        history ? `Conversation so far:\n${history}` : "",
+        `Current question: ${request.question}`,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     },
   ]);
 
@@ -109,7 +130,7 @@ function textOf(content: unknown): string {
     return (content as unknown[])
       .map((part) => {
         if (part === null || typeof part !== "object" || !("text" in part)) return "";
-        const text = (part).text;
+        const text = part.text;
         return typeof text === "string" ? text : "";
       })
       .join("");
