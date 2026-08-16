@@ -43,12 +43,23 @@ export type PlanDto = {
   podcasts: boolean;
 };
 
+export type SubscriptionDto = {
+  status: "ACTIVE" | "PAST_DUE" | "CANCELLED" | "EXPIRED";
+  /**
+   * Set once cancellation has been asked for. The difference between this being
+   * null and not is the difference between "renews on" and "ends on".
+   */
+  cancelAtPeriodEnd: string | null;
+};
+
 export type BillingStateDto = {
   plan: PlanDto;
   /** Credits left in the current period. */
   balance: number;
   periodStart: string;
   periodEnd: string;
+  /** Null on the free tier, which is what having no subscription means. */
+  subscription: SubscriptionDto | null;
 };
 
 /** What each action costs, served so the pricing page cannot drift from the server. */

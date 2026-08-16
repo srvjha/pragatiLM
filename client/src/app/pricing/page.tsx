@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { PlanTable } from "@/components/billing/plan-table";
+import { PlanTableSkeleton } from "@/components/billing/plan-table-skeleton";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -38,7 +40,13 @@ export default function PricingPage() {
             </p>
           </div>
 
-          <PlanTable />
+          {/* PlanTable reads ?plan= to resume a purchase that signing up
+              interrupted, and Next needs that behind a boundary so this page can
+              still be prerendered: the copy above is static, and the part that
+              depends on the URL fills in on the client. */}
+          <Suspense fallback={<PlanTableSkeleton />}>
+            <PlanTable />
+          </Suspense>
         </section>
       </main>
 
