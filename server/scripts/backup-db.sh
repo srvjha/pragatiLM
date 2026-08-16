@@ -15,8 +15,10 @@
 #   BACKUP_DIR=/srv/backups ./scripts/backup-db.sh
 #   RCLONE_REMOTE=r2:dochat-backups ./scripts/backup-db.sh   # and push off the box
 #
-# On a server, run it from cron at 3am and keep the output:
-#   0 3 * * * /opt/dochatlm/server/scripts/backup-db.sh >> /var/log/dochat-backup.log 2>&1
+# On a server, run it from cron and keep the output. cron is in UTC, so pick the
+# hour in UTC rather than in your own: 30 21 is 3am IST, while the 0 3 that looks
+# right runs at 8:30am IST, in the middle of the working day.
+#   30 21 * * * /opt/dochatlm/server/scripts/backup-db.sh >> /var/log/dochat-backup.log 2>&1
 #
 # A backup that lives only on the machine it is backing up protects you from
 # deleting a table. It does not protect you from losing the machine, which is

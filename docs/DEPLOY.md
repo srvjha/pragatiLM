@@ -263,17 +263,71 @@ crontab -e
 ```
 
 ```cron
-0 3 * * * cd ~/pragatiLM/server && CONTAINER=pragati-postgres-1 ./scripts/backup-db.sh >> ~/backup.log 2>&1
+30 21 * * * cd ~/pragatiLM/server && CONTAINER=pragati-postgres-1 ./scripts/backup-db.sh >> ~/backup.log 2>&1
 ```
 
 `~` rather than a spelled-out home directory, so the line does not care what the
 account is called. Check the container name first with `docker ps`; compose
 prefixes it with the project name.
 
-A copy that lives only on the machine being backed up protects against a
-dropped table and nothing worse. Install `rclone`, run `rclone config` once for
-Cloudflare R2 or Backblaze B2 — both free at this size — and add
-`RCLONE_REMOTE=r2:your-bucket` to that line.
+**cron runs in UTC.** `30 21` is 3am IST, which is the point of picking it. The
+obvious-looking `0 3 * * *` runs at 8:30am IST — the middle of the working day,
+which is exactly when a dump competing for the disk is least welcome. Check what
+the machine thinks the time is with `date -u` before deciding.
+
+### Getting a copy off the machine
+
+A copy that lives only on the machine being backed up protects against a dropped
+table and nothing worse. If the disk fails, the database and every backup of it
+go together, and that is the failure that ends a product rather than costing an
+afternoon.
+
+`rclone` copies the dump to object storage. Cloudflare R2 is the cheapest fit —
+no egress fees, so a restore costs nothing — and at this size the bill is
+effectively zero either way.
+
+```bash
+sudo -v && curl https://rclone.org/install.sh | sudo bash
+rclone config
+```
+
+`rclone config` is a set of prompts. The answers that matter: `n` for a new
+remote, name it `r2`, choose **Cloudflare R2** (or S3 with R2 as the provider,
+depending on the version), and paste the access key, secret and account id from
+the R2 dashboard. Leave the rest at their defaults.
+
+Then prove it works before trusting it:
+
+```bash
+rclone lsd r2:                      # the buckets it can see
+rclone copy ~/backup.log r2:pragatilm-backups --no-traverse
+rclone ls r2:pragatilm-backups      # the file should be listed
+```
+
+Once it does, add the remote to the cron line and cut local retention, since the
+off-box copies are governed by the bucket's own lifecycle rules rather than by
+this disk:
+
+```cron
+30 21 * * * cd ~/pragatiLM/server && CONTAINER=pragati-postgres-1 RCLONE_REMOTE=r2:pragatilm-backups KEEP=7 ./scripts/backup-db.sh >> ~/backup.log 2>&1
+```
+
+`KEEP` is the number of local dumps retained. Fourteen copies of a growing
+database is the single largest consumer of this disk over time, and there is no
+reason to hold two weeks locally once every one of them is also somewhere else.
+
+### Knowing when it stops
+
+The script exits non-zero on failure, and cron mails that to a local mailbox
+nobody reads — so a backup that quietly stopped working is discovered on the day
+it is needed. A free dead man's switch closes that:
+
+```cron
+30 21 * * * cd ~/pragatiLM/server && CONTAINER=pragati-postgres-1 RCLONE_REMOTE=r2:pragatilm-backups KEEP=7 ./scripts/backup-db.sh >> ~/backup.log 2>&1 && curl -fsS -m 10 https://hc-ping.com/YOUR-UUID
+```
+
+The `&&` is the point: no ping unless the backup actually succeeded, so silence
+is what raises the alarm rather than an error nobody sees.
 
 Then restore one, once, before you need it:
 
