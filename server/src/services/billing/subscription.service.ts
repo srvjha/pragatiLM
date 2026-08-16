@@ -2,8 +2,9 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { paymentEvents, subscriptions } from "@/db/schema";
 import { isKnownPlan } from "@/billing/plans";
-import { PRODUCT_TAG, toDate } from "@/billing/razorpay";
+import { cancelSubscription, PRODUCT_TAG, toDate } from "@/billing/razorpay";
 import { entitlementFor } from "./entitlements.service";
+import { badRequest } from "@/lib/errors";
 import { childLogger } from "@/lib/logger";
 import type { SubscriptionStatus } from "@/db/schema";
 
@@ -127,6 +128,41 @@ async function setStatus(providerRef: string, status: SubscriptionStatus): Promi
     .update(subscriptions)
     .set({ status, updatedAt: new Date() })
     .where(eq(subscriptions.providerRef, providerRef));
+}
+
+/**
+ * Asks Razorpay to stop billing this person at the end of the period they have
+ * paid for.
+ *
+ * Nothing about their entitlements changes here, and that is the point: they
+ * have paid for the rest of the month and keep it. The plan drops to free when
+ * the `subscription.cancelled` webhook arrives at the end of the cycle, which
+ * is the same path every other status change takes — so there is one place that
+ * decides what somebody is on, rather than two that can disagree.
+ */
+export async function cancelForUser(userId: string): Promise<Date> {
+  const subscription = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .limit(1);
+
+  const row = subscription[0];
+  if (!row || !row.providerRef || row.status === "CANCELLED" || row.status === "EXPIRED") {
+    throw badRequest("There is no active subscription to cancel.");
+  }
+
+  await cancelSubscription(row.providerRef);
+
+  // Recorded locally so the interface can say "ends on the 14th" straight away
+  // rather than waiting weeks for the webhook to make it true.
+  await db
+    .update(subscriptions)
+    .set({ cancelAtPeriodEnd: row.currentPeriodEnd, updatedAt: new Date() })
+    .where(eq(subscriptions.id, row.id));
+
+  log.info({ userId, endsAt: row.currentPeriodEnd }, "subscription will not renew");
+  return row.currentPeriodEnd;
 }
 
 /**

@@ -22,3 +22,7 @@ export function startCheckout(planCode: string): Promise<CheckoutSession> {
     body: JSON.stringify({ planCode }),
   });
 }
+
+export function cancelSubscription(): Promise<{ endsAt: string }> {
+  return apiFetch<{ endsAt: string }>("/billing/cancel", { method: "POST" });
+}

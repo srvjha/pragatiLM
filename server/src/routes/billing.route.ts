@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSession, requireUser } from "@/middleware/session";
 import { validate } from "@/middleware/validate";
 import { entitlementFor } from "@/services/billing/entitlements.service";
-import { applyWebhook } from "@/services/billing/subscription.service";
+import { applyWebhook, cancelForUser } from "@/services/billing/subscription.service";
 import {
   createSubscription,
   isBillingConfigured,
@@ -65,9 +65,35 @@ billingRouter.get(
           balance: entitlement.balance,
           periodStart: entitlement.periodStart.toISOString(),
           periodEnd: entitlement.periodEnd.toISOString(),
+          // Only the two fields the interface needs. The provider reference and
+          // the internal id are of no use to a browser and are not its business.
+          subscription: entitlement.subscription
+            ? {
+                status: entitlement.subscription.status,
+                cancelAtPeriodEnd:
+                  entitlement.subscription.cancelAtPeriodEnd?.toISOString() ?? null,
+              }
+            : null,
         };
         res.json({ data: body });
       })
+      .catch(next);
+  },
+);
+
+/**
+ * Stops the subscription renewing.
+ *
+ * A POST rather than a DELETE, because nothing is deleted: the person keeps
+ * everything they paid for until the period runs out, and the row stays as the
+ * record of what they were on.
+ */
+billingRouter.post(
+  "/billing/cancel",
+  requireSession,
+  (req: Request, res: Response, next: NextFunction) => {
+    cancelForUser(requireUser(req).id)
+      .then((endsAt) => res.json({ data: { endsAt: endsAt.toISOString() } }))
       .catch(next);
   },
 );

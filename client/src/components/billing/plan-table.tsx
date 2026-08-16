@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Check, Loader2, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +28,30 @@ export function PlanTable() {
   const { data: state } = useBillingState();
   const { data: session } = useSession();
   const checkout = useStartCheckout();
+  const params = useSearchParams();
+
+  /**
+   * Resumes a purchase that signing up interrupted.
+   *
+   * Somebody who picked Plus while signed out is sent to sign up, and without
+   * this they come back to the same page and have to choose the same plan
+   * again. The guard list is what stops the URL doing anything else: the plan
+   * has to be one the API actually returned and one they are not already on,
+   * and it fires once.
+   */
+  const wanted = params.get("plan");
+  const resumed = useRef(false);
+
+  useEffect(() => {
+    if (resumed.current || !wanted || !session || !data?.billingEnabled) return;
+    if (state?.plan.code === wanted) return;
+
+    const plan = data.plans.find((entry) => entry.code === wanted);
+    if (!plan || plan.pricePaise === 0) return;
+
+    resumed.current = true;
+    checkout.mutate(wanted);
+  }, [wanted, session, data, state, checkout]);
 
   if (isPending || !data) {
     return (

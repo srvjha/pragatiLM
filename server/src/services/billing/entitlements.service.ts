@@ -18,6 +18,15 @@ export type Entitlement = {
   periodStart: Date;
   periodEnd: Date;
   balance: number;
+  /**
+   * The subscription behind the plan, when there is one.
+   *
+   * Absent on the free tier, which is what "no row" means. Carried so the
+   * billing screen can tell "renews on the 14th" from "ends on the 14th" —
+   * the same date meaning opposite things depending on whether it was
+   * cancelled.
+   */
+  subscription: Subscription | null;
 };
 
 /**
@@ -94,6 +103,7 @@ export async function entitlementFor(userId: string, now = new Date()): Promise<
     periodStart: period.start,
     periodEnd: period.end,
     balance: await repo.balanceForPeriod(userId, period.start),
+    subscription: subscription ?? null,
   };
 }
 

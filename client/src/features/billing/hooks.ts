@@ -93,3 +93,30 @@ export function useStartCheckout() {
     },
   });
 }
+
+export function useCancelSubscription() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: api.cancelSubscription,
+
+    onSuccess: (result) => {
+      // Says the date rather than "cancelled", because nothing is taken away
+      // today: they keep the plan they paid for until the period runs out.
+      toast.success(
+        `Your plan will not renew. It stays active until ${new Date(
+          result.endsAt,
+        ).toLocaleDateString("en-IN", { day: "numeric", month: "long" })}.`,
+      );
+      void client.invalidateQueries({ queryKey: queryKeys.billing.me() });
+    },
+
+    onError: (error: unknown) => {
+      toast.error(
+        error instanceof ApiError && error.status < 500
+          ? error.message
+          : "Could not cancel. Try again in a moment.",
+      );
+    },
+  });
+}

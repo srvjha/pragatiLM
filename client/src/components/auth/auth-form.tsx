@@ -43,6 +43,22 @@ const copy = {
   },
 } as const;
 
+/**
+ * Where to land once signed in.
+ *
+ * Arriving from a paid plan on the pricing page means the reason for signing up
+ * was to buy it, and dropping somebody on the notebooks list would make them
+ * find their way back and choose the plan they had already chosen.
+ *
+ * Only a plan's name travels, and it is only ever used to pick between two
+ * fixed paths here — never interpolated into a host — so an unrecognised value
+ * lands harmlessly on the pricing page rather than anywhere a redirect could be
+ * pointed.
+ */
+function afterAuthPath(plan: string | null): string {
+  return plan ? `/pricing?plan=${encodeURIComponent(plan)}` : "/notebooks";
+}
+
 export function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -105,7 +121,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       return;
     }
 
-    router.push("/notebooks");
+    router.push(afterAuthPath(params.get("plan")));
     router.refresh();
   }
 
@@ -126,7 +142,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
   function social(provider: Provider) {
     return signIn.social({
       provider,
-      callbackURL: `${window.location.origin}/notebooks`,
+      callbackURL: `${window.location.origin}${afterAuthPath(params.get("plan"))}`,
       // Without this, a refused or cancelled sign in lands on an API error page
       // rather than back here with something to read.
       errorCallbackURL: `${window.location.origin}/sign-in?error=oauth`,

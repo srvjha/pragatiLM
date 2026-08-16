@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, LogOut, NotebookPen } from "lucide-react";
+import { BarChart3, CreditCard, LogOut, NotebookPen } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,6 +76,10 @@ export function AccountMenu() {
         <DropdownMenuItem onClick={() => router.push("/dashboard")}>
           <BarChart3 className="size-3.5" />
           Dashboard
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push("/settings/billing")}>
+          <CreditCard className="size-3.5" />
+          Plan and usage
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />

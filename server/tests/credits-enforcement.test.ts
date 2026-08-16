@@ -217,3 +217,42 @@ describe("reindexing", () => {
     expect(await balance()).toBe(after);
   });
 });
+
+describe("cancelling", () => {
+  it("refuses when there is nothing to cancel", async () => {
+    const response = await agent.post("/api/billing/cancel");
+
+    expect(response.status).toBe(400);
+    expect((response.body as { error: { code: string } }).error.code).toBe("BAD_REQUEST");
+  });
+
+  it("needs a session", async () => {
+    const stranger = (await import("supertest")).default(app);
+    expect((await stranger.post("/api/billing/cancel")).status).toBe(401);
+  });
+});
+
+describe("the billing state", () => {
+  it("reports no subscription on the free tier", async () => {
+    const response = await agent.get("/api/billing/me");
+    expect((response.body as { data: BillingStateDto }).data.subscription).toBeNull();
+  });
+
+  it("reports the subscription's status once there is one", async () => {
+    await db.insert(subscriptions).values({
+      userId,
+      planCode: "plus",
+      status: "ACTIVE",
+      provider: "razorpay",
+      currentPeriodStart: new Date(Date.now() - 86_400_000),
+      currentPeriodEnd: new Date(Date.now() + 20 * 86_400_000),
+    });
+
+    const state = ((await agent.get("/api/billing/me")).body as { data: BillingStateDto }).data;
+
+    expect(state.plan.code).toBe("plus");
+    expect(state.subscription?.status).toBe("ACTIVE");
+    // Not cancelled, so the date reads as "renews on" rather than "ends on".
+    expect(state.subscription?.cancelAtPeriodEnd).toBeNull();
+  });
+});
