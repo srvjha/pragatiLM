@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type { Locator } from "@/types/api";
+import type { CreditRefusal } from "@/features/billing/hooks";
 
 /**
  * Client only UI state. Server data lives in TanStack Query and is never
@@ -36,7 +37,18 @@ type UiState = {
 
   selectedSourceIds: string[];
 
+  /**
+   * A refusal about credits, from wherever it happened.
+   *
+   * Held here rather than beside each action because there is one dialog and
+   * there are four ways to reach it — asking, uploading, an audio overview, a
+   * roadmap. Four copies of the same state would drift, and a fifth charged
+   * action would have to remember to add a sixth.
+   */
+  refusal: CreditRefusal | null;
+
   setActiveNotebook: (id: string | null) => void;
+  setRefusal: (refusal: CreditRefusal | null) => void;
   setRailOpen: (open: boolean) => void;
   toggleRail: () => void;
   setSwitcherOpen: (open: boolean) => void;
@@ -73,6 +85,7 @@ export const useUiStore = create<UiState>((set) => ({
   viewerSnippet: null,
   viewerWide: false,
   selectedSourceIds: [],
+  refusal: null,
 
   setActiveNotebook: (id) =>
     set({
@@ -126,4 +139,6 @@ export const useUiStore = create<UiState>((set) => ({
   setViewerWide: (viewerWide) => set({ viewerWide }),
 
   setSelectedSources: (selectedSourceIds) => set({ selectedSourceIds }),
+
+  setRefusal: (refusal) => set({ refusal }),
 }));

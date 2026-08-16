@@ -7,6 +7,7 @@ import { TopBar } from "./top-bar";
 import { Rail } from "./rail";
 import { PanelErrorBoundary } from "./error-boundary";
 import { NotebookSwitcher } from "@/components/notebooks/notebook-switcher";
+import { CreditWall } from "@/components/billing/credit-wall";
 import { useNotebooks } from "@/features/notebooks/hooks";
 import { useUiStore } from "@/stores/ui-store";
 
@@ -93,6 +94,10 @@ export function AppShell({
       </div>
 
       <NotebookSwitcher notebooks={notebooks ?? []} />
+
+      {/* One dialog for every charged action. Mounted here so a refusal from the
+          chat, an upload or an audio overview all surface the same way. */}
+      <CreditWall />
     </div>
   );
 }

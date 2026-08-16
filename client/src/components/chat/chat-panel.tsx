@@ -23,6 +23,7 @@ import { CitationChips } from "./citation-chips";
 import { ClearChatDialog } from "./clear-chat-dialog";
 import * as api from "@/features/chat/api";
 import { useChatStream } from "@/features/chat/use-chat-stream";
+import { useRefreshBalance } from "@/features/billing/hooks";
 import { useSources } from "@/features/sources/hooks";
 import { queryKeys } from "@/lib/query-keys";
 import { isQueryable } from "@/lib/source-status";
@@ -64,11 +65,16 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
     enabled: chatId !== null,
   });
 
+  const refreshBalance = useRefreshBalance();
+
   const onFinished = useCallback(() => {
     void client.invalidateQueries({
       queryKey: queryKeys.chats.messages(chatId ?? "none"),
     });
-  }, [client, chatId]);
+    // Every answer spends a credit, and a failed one gives it back, so the meter
+    // is only right once the server has had the last word on it.
+    void refreshBalance();
+  }, [client, chatId, refreshBalance]);
 
   const { state, send, stop, reset } = useChatStream(notebookId, onFinished);
   const [draft, setDraft] = useState("");

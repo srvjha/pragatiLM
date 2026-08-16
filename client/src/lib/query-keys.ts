@@ -19,6 +19,12 @@ export const queryKeys = {
       [...queryKeys.chats.all, "messages", chatId] as const,
   },
 
+  billing: {
+    all: ["billing"] as const,
+    plans: () => [...queryKeys.billing.all, "plans"] as const,
+    me: () => [...queryKeys.billing.all, "me"] as const,
+  },
+
   roadmap: (notebookId: string) => ["roadmap", notebookId] as const,
   podcasts: (notebookId: string) => ["podcasts", notebookId] as const,
 
