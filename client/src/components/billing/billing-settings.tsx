@@ -20,6 +20,7 @@ import {
   useCancelSubscription,
 } from "@/features/billing/hooks";
 import { credits, planLimits, rupees } from "@/features/billing/format";
+import { InvoiceList } from "@/components/billing/invoice-list";
 
 const onDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-IN", {
@@ -101,6 +102,8 @@ export function BillingSettings() {
           Resets {onDate(data.periodEnd)}.
         </p>
       </section>
+
+      <InvoiceList />
 
       <div className="flex flex-wrap gap-2">
         <Button

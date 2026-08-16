@@ -1,5 +1,9 @@
 import { apiFetch } from "@/lib/api-client";
-import type { BillingStateDto, PlanCatalogueDto } from "@/types/api";
+import type {
+  BillingStateDto,
+  PaymentDto,
+  PlanCatalogueDto,
+} from "@/types/api";
 
 export function fetchPlans(): Promise<PlanCatalogueDto> {
   return apiFetch<PlanCatalogueDto>("/billing/plans");
@@ -25,4 +29,8 @@ export function startCheckout(planCode: string): Promise<CheckoutSession> {
 
 export function cancelSubscription(): Promise<{ endsAt: string }> {
   return apiFetch<{ endsAt: string }>("/billing/cancel", { method: "POST" });
+}
+
+export function fetchInvoices(): Promise<PaymentDto[]> {
+  return apiFetch<PaymentDto[]>("/billing/invoices");
 }

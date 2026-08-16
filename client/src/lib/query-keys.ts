@@ -23,6 +23,7 @@ export const queryKeys = {
     all: ["billing"] as const,
     plans: () => [...queryKeys.billing.all, "plans"] as const,
     me: () => [...queryKeys.billing.all, "me"] as const,
+    invoices: () => [...queryKeys.billing.all, "invoices"] as const,
   },
 
   roadmap: (notebookId: string) => ["roadmap", notebookId] as const,

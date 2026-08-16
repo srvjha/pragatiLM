@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { paymentEvents, subscriptions } from "@/db/schema";
+import { paymentEvents, payments, subscriptions } from "@/db/schema";
 import { isKnownPlan } from "@/billing/plans";
 import { cancelSubscription, PRODUCT_TAG, toDate } from "@/billing/razorpay";
 import { entitlementFor } from "./entitlements.service";
@@ -38,8 +38,52 @@ type RazorpayEvent = {
         notes?: Record<string, string>;
       };
     };
+    /** Present on `subscription.charged`: the money that actually moved. */
+    payment?: {
+      entity?: {
+        id?: string;
+        amount?: number;
+        currency?: string;
+        status?: string;
+        created_at?: number | null;
+      };
+    };
   };
 };
+
+/**
+ * Records a payment, if this event carried one.
+ *
+ * Only captured payments count. Razorpay reports authorised and failed ones
+ * through the same shape, and a receipt listing money that was never taken is
+ * worse than no receipt at all.
+ *
+ * The amount is stored as reported rather than read from the plan: what a
+ * receipt has to say is what was charged, and today's price is not evidence of
+ * what was taken in March.
+ */
+async function recordPayment(
+  userId: string,
+  planCode: string,
+  event: RazorpayEvent,
+): Promise<void> {
+  const entity = event.payload?.payment?.entity;
+  if (!entity?.id || typeof entity.amount !== "number") return;
+  if (entity.status && entity.status !== "captured") return;
+
+  await db
+    .insert(payments)
+    .values({
+      userId,
+      providerPaymentId: entity.id,
+      amountPaise: entity.amount,
+      currency: entity.currency ?? "INR",
+      planCode,
+      paidAt: toDate(entity.created_at) ?? new Date(),
+    })
+    // A redelivered webhook must not add a second receipt for one payment.
+    .onConflictDoNothing();
+}
 
 /**
  * Records the event before acting on it.
@@ -224,6 +268,8 @@ export async function applyWebhook(
         periodStart,
         periodEnd,
       });
+
+      await recordPayment(userId, planCode, event);
 
       // Materialises the new period's credits immediately rather than on their
       // next request, so the balance is right the moment they return from

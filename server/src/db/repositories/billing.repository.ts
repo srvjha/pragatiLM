@@ -1,7 +1,7 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { creditLedger, subscriptions } from "@/db/schema";
-import type { CreditReason, Subscription } from "@/db/schema";
+import { creditLedger, payments, subscriptions } from "@/db/schema";
+import type { CreditReason, Payment, Subscription } from "@/db/schema";
 
 /**
  * The only place billing queries are written.
@@ -106,4 +106,20 @@ export async function spendCredits(
 
     return { outcome: "spent", balance: balance - cost };
   });
+}
+
+/**
+ * A person's receipts, newest first.
+ *
+ * Capped rather than paginated: a monthly subscription produces twelve rows a
+ * year, so two years of history fits on one screen and a page control would be
+ * furniture for a list that never needs it.
+ */
+export async function listPayments(userId: string, limit = 24): Promise<Payment[]> {
+  return db
+    .select()
+    .from(payments)
+    .where(eq(payments.userId, userId))
+    .orderBy(desc(payments.paidAt))
+    .limit(limit);
 }

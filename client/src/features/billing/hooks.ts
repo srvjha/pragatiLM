@@ -120,3 +120,14 @@ export function useCancelSubscription() {
     },
   });
 }
+
+/**
+ * Receipts. Only fetched on the billing screen, and rarely changing once there —
+ * a monthly subscription adds a row a month.
+ */
+export function useInvoices() {
+  return useQuery({
+    queryKey: queryKeys.billing.invoices(),
+    queryFn: api.fetchInvoices,
+  });
+}

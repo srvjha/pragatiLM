@@ -141,6 +141,43 @@ export const paymentEvents = pgTable(
   ],
 );
 
+/**
+ * One row per payment actually taken.
+ *
+ * Distinct from `payment_events`, which is the raw webhook log and exists for
+ * disputes. That log is keyed by the provider's event id and has no user column,
+ * so answering "what has this person paid" from it would mean reaching into a
+ * JSON payload and trusting its shape — a query that breaks the day Razorpay
+ * nests something differently. This table is the domain fact, extracted once
+ * when the webhook is handled.
+ *
+ * Amounts are stored as the provider reported them rather than recomputed from
+ * the plan. A receipt has to say what was charged, and the plan's price today is
+ * not evidence of what was taken in March.
+ */
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Razorpay's payment id. Unique, so a redelivered webhook adds nothing. */
+    providerPaymentId: text("provider_payment_id").notNull(),
+    amountPaise: integer("amount_paise").notNull(),
+    currency: varchar("currency", { length: 8 }).notNull().default("INR"),
+    /** The plan this payment bought, as it was named at the time. */
+    planCode: varchar("plan_code", { length: 40 }).notNull(),
+    paidAt: timestamp("paid_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("payments_user_paid_at_idx").on(table.userId, table.paidAt),
+    uniqueIndex("payments_provider_payment_idx").on(table.providerPaymentId),
+  ],
+);
+
+export type Payment = typeof payments.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type CreditLedgerEntry = typeof creditLedger.$inferSelect;
 export type PaymentEvent = typeof paymentEvents.$inferSelect;
