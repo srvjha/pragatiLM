@@ -28,3 +28,8 @@ playwright-report/
 
 # Database dumps. Local copies of everything the product holds — never in git.
 backups/
+
+# Personal operating notes: what to revisit and at roughly what scale. Written
+# for one reader, revised constantly, and full of judgement calls that would
+# read as commitments if they were in the repository's history.
+FUTURE-CHECKS.md
