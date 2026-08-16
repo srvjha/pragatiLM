@@ -7,3 +7,4 @@ export * from "./chunks";
 export * from "./retrieval-runs";
 export * from "./chats";
 export * from "./artifacts";
+export * from "./billing";

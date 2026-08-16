@@ -221,6 +221,25 @@ const schema = z.object({
   CRAG_WALL_CLOCK_MS: positiveInt.default(15000),
 
   MAX_UPLOAD_MB: positiveInt.default(50),
+
+  // Razorpay. Keys from https://dashboard.razorpay.com/app/website-app-settings/api-keys.
+  //
+  // All optional: with none of them set the product runs exactly as it does
+  // today, every account sits on the free plan, and the checkout route reports
+  // that billing is not configured rather than failing at import. That is what
+  // makes this safe to merge before the account exists.
+  RAZORPAY_KEY_ID: optionalString,
+  RAZORPAY_KEY_SECRET: optionalString,
+  // Set when creating the webhook in the dashboard. Distinct from the API
+  // secret, and the only thing standing between a stranger and a free
+  // subscription, since anyone can POST to the webhook URL.
+  RAZORPAY_WEBHOOK_SECRET: optionalString,
+  // Plan ids from the Razorpay dashboard, one per paid plan here. Razorpay owns
+  // the recurring schedule and the amount it charges; plans.ts owns what the
+  // money buys. The two are matched by these ids and by nothing else, so a
+  // mismatch is worth checking whenever a price changes.
+  RAZORPAY_PLAN_PLUS: optionalString,
+  RAZORPAY_PLAN_PRO: optionalString,
 });
 
 export type Env = z.infer<typeof schema>;

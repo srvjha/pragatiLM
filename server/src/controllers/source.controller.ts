@@ -1,6 +1,8 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import * as service from "@/services/source.service";
 import { requireNotebook } from "@/middleware/ownership";
+import { requireUser } from "@/middleware/session";
+import { refund } from "@/services/billing/entitlements.service";
 import { badRequest } from "@/lib/errors";
 import type {
   CreateTextBody,
@@ -59,6 +61,13 @@ export const createPdf: RequestHandler = (req: Request, res: Response, next: Nex
           message: error instanceof Error ? error.message : "Could not add this file",
         });
       }
+    }
+
+    // Charged per attached file before any of them were tried, because the gate
+    // has to run before the work. Whatever was refused — a duplicate, an
+    // unreadable file — was paid for and never stored, so it comes back.
+    if (rejected.length > 0 && req.creditRef) {
+      await refund(requireUser(req).id, "source", req.creditRef, { units: rejected.length });
     }
 
     // A partial failure still returns 201 with what succeeded, because failing

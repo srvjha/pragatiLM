@@ -1,5 +1,6 @@
 import { Queue, type JobsOptions } from "bullmq";
 import { env } from "@/config/env";
+import type { CreditCharge } from "@/billing/costs";
 
 /**
  * Queue definitions and the enqueue helpers. Workers live in src/workers and are
@@ -60,6 +61,11 @@ export type ChatJob = {
   notebookId: string;
   content: string;
   sourceIds?: string[];
+  /**
+   * What this answer was charged. Optional so a job queued before the field
+   * existed still runs; it simply has nothing to refund.
+   */
+  credit?: CreditCharge;
 };
 
 export type IngestJob = { sourceId: string; requestId?: string };

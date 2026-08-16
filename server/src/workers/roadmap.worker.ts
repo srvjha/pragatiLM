@@ -2,8 +2,10 @@ import { Worker, type Job } from "bullmq";
 import { connection, QUEUE_NAMES } from "@/queues";
 import { generateRoadmap, saveRoadmap } from "@/services/roadmap/roadmap.service";
 import { roadmapRun } from "@/services/artifact-run.service";
+import { refundCharge } from "@/services/billing/entitlements.service";
 import { channels, publish } from "@/lib/events";
 import { childLogger } from "@/lib/logger";
+import type { CreditCharge } from "@/billing/costs";
 import type { RoadmapLevel } from "@/db/schema";
 
 const log = childLogger("worker:roadmap");
@@ -14,6 +16,7 @@ export type RoadmapJob = {
   goal?: string;
   /** Empty means every timed source, which is the old implicit behaviour. */
   sourceIds?: string[];
+  credit?: CreditCharge;
 };
 
 async function run(job: Job<RoadmapJob>): Promise<void> {
@@ -50,6 +53,7 @@ export function createRoadmapWorker(): Worker<RoadmapJob> {
     log.error({ err: error }, "roadmap failed");
     if (!job?.data.notebookId) return;
 
+    void refundCharge(job.data.credit, "roadmap");
     void roadmapRun(job.data.notebookId).fail(error.message);
   });
 

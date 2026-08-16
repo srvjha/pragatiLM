@@ -1,5 +1,8 @@
 import request from "supertest";
+import { eq } from "drizzle-orm";
 import type { Express } from "express";
+import { db } from "@/db/client";
+import { users } from "@/db/schema";
 
 /**
  * A signed in client for the HTTP tests.
@@ -25,4 +28,20 @@ export async function signedIn(app: Express, email = "member@example.com") {
   }
 
   return agent;
+}
+
+/**
+ * The same signed in client, plus the user's id.
+ *
+ * Anything scoped to a person rather than to a notebook — billing above all —
+ * needs the id, and reading it back from the row is how a test gets the id the
+ * session actually belongs to rather than one it invented.
+ */
+export async function signedInUser(app: Express, email = "member@example.com") {
+  const agent = await signedIn(app, email);
+
+  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  if (!user) throw new Error(`signed up ${email} but no user row exists`);
+
+  return { agent, id: user.id };
 }

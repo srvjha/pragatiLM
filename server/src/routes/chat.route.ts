@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { validate } from "@/middleware/validate";
 import { requireNotebook } from "@/middleware/ownership";
+import { chargeFor, requireCredits } from "@/middleware/credits";
 import { notFound } from "@/lib/errors";
 import * as repo from "@/db/repositories/chat.repository";
 import { enqueueAnswer } from "@/queues";
@@ -67,6 +68,8 @@ chatRouter.delete("/:chatId", validate({ params: chatIdParams }), (req, res, nex
 chatRouter.post(
   "/:chatId/messages",
   validate({ params: chatIdParams, body: sendMessageBody }),
+  // After validation, so a malformed question costs nothing.
+  requireCredits("chat"),
   (req: Request, res: Response, next) => {
     const notebookId = requireNotebook(req).id;
     const chatId = String(req.params.chatId);
@@ -85,12 +88,17 @@ chatRouter.post(
         status: "streaming",
       });
 
+      // Keyed on the answer being produced, so a retry or a repeated failure
+      // returns the credit exactly once.
+      const credit = chargeFor(req, assistant.id);
+
       await enqueueAnswer({
         messageId: assistant.id,
         chatId,
         notebookId,
         content: body.content,
         ...(body.sourceIds ? { sourceIds: body.sourceIds } : {}),
+        ...(credit ? { credit } : {}),
       });
 
       relay(req, res, assistant.id);
