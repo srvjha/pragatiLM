@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import * as api from "./api";
 import { queryKeys } from "@/lib/query-keys";
 import { ApiError } from "@/lib/api-client";
+import { creditRefusal } from "@/features/billing/hooks";
+import { useUiStore } from "@/stores/ui-store";
 import type { SourceDto } from "@/types/api";
 
 function message(error: unknown, fallback: string): string {
@@ -42,12 +44,23 @@ function useSourceMutation<TArgs>(
 
   return useMutation({
     mutationFn,
-    onError: (error) => toast.error(message(error, fallbackMessage)),
+    onError: (error) => {
+      // Every way of adding a source runs through here, so the credit refusal is
+      // caught once rather than in each of the five callers.
+      const refusal = creditRefusal(error);
+      if (refusal) {
+        useUiStore.getState().setRefusal(refusal);
+        return;
+      }
+      toast.error(message(error, fallbackMessage));
+    },
     onSettled: () => {
       void client.invalidateQueries({
         queryKey: queryKeys.sources.list(notebookId),
       });
       void client.invalidateQueries({ queryKey: queryKeys.notebooks.list() });
+      // Adding a source spends credits, and a rejected duplicate refunds them.
+      void client.invalidateQueries({ queryKey: queryKeys.billing.me() });
     },
   });
 }
@@ -231,6 +244,8 @@ export function useDeleteSource(notebookId: string) {
         queryKey: queryKeys.sources.list(notebookId),
       });
       void client.invalidateQueries({ queryKey: queryKeys.notebooks.list() });
+      // Adding a source spends credits, and a rejected duplicate refunds them.
+      void client.invalidateQueries({ queryKey: queryKeys.billing.me() });
     },
   });
 }

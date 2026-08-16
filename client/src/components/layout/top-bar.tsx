@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Wordmark } from "@/components/brand/wordmark";
 import { AccountMenu } from "@/components/auth/account-menu";
+import { CreditMeter } from "@/components/billing/credit-meter";
 import { useNotebooks } from "@/features/notebooks/hooks";
 import { useUiStore } from "@/stores/ui-store";
 
@@ -123,6 +124,8 @@ export function TopBar({ notebookId }: { notebookId?: string }) {
           />
           <TooltipContent>Search notebooks</TooltipContent>
         </Tooltip>
+
+        <CreditMeter />
 
         <ThemeToggle />
 

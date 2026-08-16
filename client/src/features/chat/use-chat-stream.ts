@@ -3,7 +3,10 @@
 import { useCallback, useRef, useState } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { stopGeneration } from "./api";
-import type { CitationDto } from "@/types/api";
+import { ApiError } from "@/lib/api-client";
+import { creditRefusal } from "@/features/billing/hooks";
+import { useUiStore } from "@/stores/ui-store";
+import type { ApiErrorBody, CitationDto } from "@/types/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -53,6 +56,10 @@ export function useChatStream(notebookId: string, onFinished: () => void) {
       const abort = new AbortController();
       controller.current = abort;
 
+      // Set by `onopen` when it has already written a precise failure, so
+      // `onerror` knows not to replace it with a generic one.
+      let handled = false;
+
       setState({
         ...initial,
         streaming: true,
@@ -72,6 +79,55 @@ export function useChatStream(notebookId: string, onFinished: () => void) {
             credentials: "include",
             // Without this the browser suspends the stream when the tab is hidden.
             openWhenHidden: true,
+
+            /**
+             * The credit gate refuses before a single token is streamed, so the
+             * refusal arrives as an ordinary JSON response rather than as a
+             * stream event. Without this it fell through to `onerror` and the
+             * reader was told the connection had been lost — which is both
+             * wrong and unactionable, when the real answer is that they are out
+             * of credits and can do something about it.
+             */
+            async onopen(response) {
+              const streaming = response.headers
+                .get("content-type")
+                ?.includes("text/event-stream");
+
+              if (response.ok && streaming) return;
+
+              const body: unknown = await response.json().catch(() => null);
+              const failure =
+                body && typeof body === "object" && "error" in body
+                  ? new ApiError(
+                      response.status,
+                      (body as { error: ApiErrorBody }).error,
+                    )
+                  : new ApiError(response.status, {
+                      code: "HTTP_ERROR",
+                      message: `The API returned HTTP ${response.status}.`,
+                    });
+
+              const refusal = creditRefusal(failure);
+              handled = true;
+
+              // A refusal about credits goes to the shared dialog rather than
+              // into this state: it is not a fact about the answer, it is an
+              // account-level thing with a remedy, and the same dialog serves
+              // uploads and audio overviews.
+              if (refusal) useUiStore.getState().setRefusal(refusal);
+
+              setState((previous) => ({
+                ...previous,
+                streaming: false,
+                phase: { kind: "idle" },
+                error: refusal ? null : failure.message,
+              }));
+
+              onFinished();
+              // Stops the library reconnecting to a request that will be refused
+              // again for the same reason.
+              throw failure;
+            },
 
             onmessage(message) {
               const data: unknown = message.data
@@ -177,11 +233,16 @@ export function useChatStream(notebookId: string, onFinished: () => void) {
             },
 
             onerror(error) {
-              setState((previous) => ({
-                ...previous,
-                streaming: false,
-                error: "The connection to the server was lost.",
-              }));
+              // `onopen` rethrows to stop the retry loop, which lands here. It
+              // has already written a precise reason, and overwriting it with a
+              // generic one would undo the whole point of handling it there.
+              if (!handled) {
+                setState((previous) => ({
+                  ...previous,
+                  streaming: false,
+                  error: "The connection to the server was lost.",
+                }));
+              }
               // Rethrowing stops the library retrying forever behind a dead server.
               throw error;
             },

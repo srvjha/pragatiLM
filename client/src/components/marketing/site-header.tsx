@@ -9,10 +9,16 @@ import { AccountMenu } from "@/components/auth/account-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
+/**
+ * Root-relative rather than bare fragments, because this header is no longer
+ * only on the landing page. From /pricing a bare "#how" points at a section that
+ * is not on the page and quietly does nothing; "/#how" goes to the section.
+ */
 const links = [
-  { label: "How it works", href: "#how" },
-  { label: "Sources", href: "#sources" },
-  { label: "Refusals", href: "#refusal" },
+  { label: "How it works", href: "/#how" },
+  { label: "Sources", href: "/#sources" },
+  { label: "Refusals", href: "/#refusal" },
+  { label: "Pricing", href: "/pricing" },
 ];
 
 /**

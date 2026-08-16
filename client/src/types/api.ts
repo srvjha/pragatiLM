@@ -30,6 +30,53 @@ export type NotebookListItemDto = NotebookDto & {
 export type CreateNotebookBody = { name?: string };
 export type UpdateNotebookBody = { name: string };
 
+export type PlanDto = {
+  code: string;
+  name: string;
+  blurb: string;
+  /** Paise. Divide by 100 to show rupees; never hold money as a float. */
+  pricePaise: number;
+  monthlyCredits: number;
+  notebooks: number;
+  sourcesPerNotebook: number;
+  storageBytes: number;
+  podcasts: boolean;
+};
+
+export type BillingStateDto = {
+  plan: PlanDto;
+  /** Credits left in the current period. */
+  balance: number;
+  periodStart: string;
+  periodEnd: string;
+};
+
+/** What each action costs, served so the pricing page cannot drift from the server. */
+export type CreditCostsDto = {
+  chat: number;
+  source: number;
+  roadmap: number;
+  podcast: number;
+};
+
+export type PlanCatalogueDto = {
+  plans: PlanDto[];
+  creditCosts: CreditCostsDto;
+  /** False when no payment keys are configured, so checkout is not offered. */
+  billingEnabled: boolean;
+};
+
+/**
+ * The `details` a 402 or 403 from the credit gate carries, so the upgrade prompt
+ * can say something specific rather than "something went wrong".
+ */
+export type CreditErrorDetails = {
+  action: string;
+  plan: string;
+  balance?: number;
+  needed: number;
+};
+
 export type SourceType = "PDF" | "TEXT" | "WEB" | "YOUTUBE" | "VTT";
 
 export type SourceStatus =

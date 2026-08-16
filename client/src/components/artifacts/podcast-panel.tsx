@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import * as api from "@/features/artifacts/api";
 import { useSources } from "@/features/sources/hooks";
+import { useUiStore } from "@/stores/ui-store";
 import { queryKeys } from "@/lib/query-keys";
 import { ApiError } from "@/lib/api-client";
 import { isQueryable } from "@/lib/source-status";
@@ -26,6 +27,7 @@ import type { PodcastDto, PodcastTurn } from "@/types/api";
 import type { PodcastLanguage } from "@/features/artifacts/api";
 import { episodeTimeline, turnAt } from "@/features/artifacts/episode-timeline";
 import { useEpisodePlayer } from "@/features/artifacts/use-episode-player";
+import { creditRefusal, useRefreshBalance } from "@/features/billing/hooks";
 
 const lengths = [3, 6, 10] as const;
 
@@ -45,6 +47,8 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
   const { data: sources } = useSources(notebookId);
   const ready = (sources ?? []).filter(isQueryable);
   const [openId, setOpenId] = useState<string | null>(null);
+  const refreshBalance = useRefreshBalance();
+  const setRefusal = useUiStore((store) => store.setRefusal);
 
   const { data: episodes, isPending } = useQuery({
     queryKey: queryKeys.podcasts(notebookId),
@@ -79,13 +83,25 @@ export function PodcastPanel({ notebookId }: { notebookId: string }) {
       void client.invalidateQueries({
         queryKey: queryKeys.podcasts(notebookId),
       });
+      // An episode is the most expensive action there is, so the meter in the
+      // header should reflect it before the user goes looking for it.
+      void refreshBalance();
     },
-    onError: (error) =>
+    onError: (error) => {
+      // A refusal about money is not a failure to be dismissed in a toast: it
+      // has a remedy, and the dialog is where that remedy is offered.
+      const refusal = creditRefusal(error);
+      if (refusal) {
+        setRefusal(refusal);
+        return;
+      }
+
       toast.error(
         error instanceof ApiError
           ? error.message
           : "Could not start that episode",
-      ),
+      );
+    },
   });
 
   if (isPending) {
