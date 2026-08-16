@@ -5,6 +5,7 @@ import { validate } from "@/middleware/validate";
 import { openSseStream } from "@/lib/sse";
 import { channels } from "@/lib/events";
 import { requireNotebook } from "@/middleware/ownership";
+import { requireCredits } from "@/middleware/credits";
 import { uploaderFor, translateUploadError } from "@/lib/upload";
 import {
   createTextBody,
@@ -47,11 +48,42 @@ sourceRouter.get("/events", (req, res) => {
   openSseStream(req, res, channels.source(requireNotebook(req).id));
 });
 
-sourceRouter.post("/pdf", upload(pdfUpload.array("files", 10)), controller.createPdf);
-sourceRouter.post("/vtt", upload(vttUpload.single("file")), controller.createVtt);
-sourceRouter.post("/text", validate({ body: createTextBody }), controller.createText);
-sourceRouter.post("/web", validate({ body: createWebBody }), controller.createWeb);
-sourceRouter.post("/youtube", validate({ body: createYoutubeBody }), controller.createYoutube);
+/**
+ * Every way of adding a source costs a credit, charged here rather than in the
+ * five controllers so a sixth way of adding one cannot arrive free.
+ *
+ * The credit is for the storage the source occupies from then on rather than the
+ * embedding it took, which is almost free. `reindex` below is deliberately not
+ * charged: it stores nothing new, and the reason somebody reindexes is usually
+ * that this product failed to extract properly the first time.
+ */
+const chargeSource = requireCredits("source");
+
+/**
+ * Charged per file, and mounted after the upload parser rather than before it.
+ *
+ * Both details matter. This route takes up to ten PDFs in one request, so a flat
+ * one-credit charge would be a tenfold under-charge — and the file count only
+ * exists once multer has parsed the body. Running after the parser also means an
+ * oversized or non-PDF upload is rejected before it costs anything.
+ */
+// Zero when nothing was attached — multer leaves `req.files` undefined rather
+// than empty — so a request with no file passes through uncharged and the
+// controller rejects it with a 400.
+const chargePdfs = requireCredits("source", (req) =>
+  Array.isArray(req.files) ? req.files.length : 0,
+);
+
+sourceRouter.post("/pdf", upload(pdfUpload.array("files", 10)), chargePdfs, controller.createPdf);
+sourceRouter.post("/vtt", upload(vttUpload.single("file")), chargeSource, controller.createVtt);
+sourceRouter.post("/text", validate({ body: createTextBody }), chargeSource, controller.createText);
+sourceRouter.post("/web", validate({ body: createWebBody }), chargeSource, controller.createWeb);
+sourceRouter.post(
+  "/youtube",
+  validate({ body: createYoutubeBody }),
+  chargeSource,
+  controller.createYoutube,
+);
 
 sourceRouter.get("/:sourceId/content", validate({ params: sourceIdParams }), getContent);
 sourceRouter.get("/:sourceId/captions", validate({ params: sourceIdParams }), getCaptions);

@@ -15,8 +15,10 @@ import {
 import { looksUngrounded, resolveMarkers, type ResolvedCitation } from "@/services/rag/citations";
 import { completeMessage, recentTurns } from "@/db/repositories/chat.repository";
 import { listSources } from "@/db/repositories/source.repository";
+import { refundCharge } from "@/services/billing/entitlements.service";
 import { emit, isStopRequested, clearStop } from "@/lib/chat-stream";
 import { childLogger } from "@/lib/logger";
+import type { CreditCharge } from "@/billing/costs";
 
 const log = childLogger("chat:answer");
 
@@ -26,6 +28,7 @@ export type AnswerJob = {
   notebookId: string;
   content: string;
   sourceIds?: string[];
+  credit?: CreditCharge;
 };
 
 /**
@@ -45,6 +48,10 @@ export async function answerQuestion(job: AnswerJob): Promise<void> {
   await emit(messageId, { event: "retrieval_start", data: { sourceCount: selected.length } });
 
   if (ready.length === 0) {
+    // Nothing was searched and no model was called, so there is nothing to have
+    // paid for. Distinct from the refusal further down, which happens *after* a
+    // real search and is a legitimate answer worth its credit.
+    await refundCharge(job.credit, "chat");
     await finish(job, NO_GROUNDED_ANSWER, "complete", [], null);
     return;
   }
@@ -120,6 +127,8 @@ export async function answerQuestion(job: AnswerJob): Promise<void> {
   });
 
   if (!hasLlmCredentials()) {
+    // Our misconfiguration, not their usage.
+    await refundCharge(job.credit, "chat");
     await finish(
       job,
       "No chat model is configured, so I cannot answer. Add OPENAI_API_KEY to server/.env.",
@@ -160,6 +169,13 @@ export async function answerQuestion(job: AnswerJob): Promise<void> {
       event: "error",
       data: { code: "GENERATION_FAILED", message: "The answer could not be generated." },
     });
+
+    // Refunded here rather than only in the worker's `failed` handler, because
+    // this path does not throw: it reports the error to the browser and returns
+    // normally, so BullMQ considers the job a success and never fires that
+    // handler. This is the most common way an answer fails, so refunding only
+    // there would have refunded almost nothing.
+    await refundCharge(job.credit, "chat");
     await finish(job, answer, "error", [], runId);
     return;
   }

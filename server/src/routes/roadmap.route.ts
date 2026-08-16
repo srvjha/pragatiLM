@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "@/middleware/validate";
 import { requireNotebook } from "@/middleware/ownership";
+import { chargeFor, requireCredits } from "@/middleware/credits";
 import { canGenerateRoadmap, findRoadmap, startRoadmap } from "@/services/roadmap/roadmap.service";
 import { badRequest } from "@/lib/errors";
 import { roadmapQueue } from "@/queues";
@@ -26,26 +27,38 @@ roadmapRouter.get("/", (req, res, next) => {
     .catch(next);
 });
 
-roadmapRouter.post("/", validate({ body: generateBody }), (req, res, next) => {
-  const notebookId = requireNotebook(req).id;
-  const body = req.body as z.infer<typeof generateBody>;
+roadmapRouter.post(
+  "/",
+  validate({ body: generateBody }),
+  requireCredits("roadmap"),
+  (req, res, next) => {
+    const notebookId = requireNotebook(req).id;
+    const body = req.body as z.infer<typeof generateBody>;
 
-  canGenerateRoadmap(notebookId)
-    .then(async (canGenerate) => {
-      // FR-6.1: the entry point is refused with a reason rather than producing
-      // an ungrounded roadmap from prose.
-      if (!canGenerate) {
-        throw badRequest(
-          "Add a video or a transcript source before generating a roadmap. Pins are timestamps, so prose cannot support one.",
+    canGenerateRoadmap(notebookId)
+      .then(async (canGenerate) => {
+        // FR-6.1: the entry point is refused with a reason rather than producing
+        // an ungrounded roadmap from prose.
+        if (!canGenerate) {
+          throw badRequest(
+            "Add a video or a transcript source before generating a roadmap. Pins are timestamps, so prose cannot support one.",
+          );
+        }
+
+        // Written before the job is queued, so the panel has something to find
+        // the moment it refetches. Enqueueing first would leave a window where a
+        // fast worker finished before the row existed.
+        await startRoadmap(notebookId, body.level, body.goal, body.sourceIds ?? []);
+        await roadmapQueue.add(
+          "generate-roadmap",
+          // Per run, not per notebook. A roadmap is one row per notebook that is
+          // replaced on every generation, so a ref of notebookId would refund
+          // the first failed run and silently swallow every later one.
+          { notebookId, ...body, credit: chargeFor(req) },
+          { attempts: 1 },
         );
-      }
-
-      // Written before the job is queued, so the panel has something to find
-      // the moment it refetches. Enqueueing first would leave a window where a
-      // fast worker finished before the row existed.
-      await startRoadmap(notebookId, body.level, body.goal, body.sourceIds ?? []);
-      await roadmapQueue.add("generate-roadmap", { notebookId, ...body }, { attempts: 1 });
-      res.status(202).json({ data: { status: "QUEUED" } });
-    })
-    .catch(next);
-});
+        res.status(202).json({ data: { status: "QUEUED" } });
+      })
+      .catch(next);
+  },
+);

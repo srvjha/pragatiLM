@@ -2,6 +2,8 @@ import { Worker, type Job } from "bullmq";
 import pTimeout from "p-timeout";
 import { connection, QUEUE_NAMES, type IngestJob } from "@/queues";
 import { findSourceById } from "@/db/repositories/source.repository";
+import { findNotebookById } from "@/db/repositories/notebook.repository";
+import { refundCharge } from "@/services/billing/entitlements.service";
 import { setSourceStatus } from "@/services/status.service";
 import { runIngestion } from "@/ingestion/pipeline";
 import { childLogger } from "@/lib/logger";
@@ -54,9 +56,25 @@ export function createIngestWorker(): Worker<IngestJob> {
     const exhausted = !job || job.attemptsMade >= (job.opts.attempts ?? 1);
     if (!exhausted || !job?.data.sourceId) return;
 
-    void findSourceById(job.data.sourceId).then((source) => {
+    void findSourceById(job.data.sourceId).then(async (source) => {
       if (!source) return;
-      return setSourceStatus({
+
+      // Refunded against the source id rather than the request that created it.
+      // One PDF upload can carry ten files and is charged ten credits under a
+      // single reference, so refunding by that reference could only ever return
+      // one of them — the ledger's unique index would swallow the rest. Keyed on
+      // the source, each failure returns its own credit, and the three ingest
+      // attempts still refund only once.
+      //
+      // A reindex is never charged, so there is nothing to give back.
+      if (job.name !== "reindex-source") {
+        const notebook = await findNotebookById(source.notebookId);
+        if (notebook) {
+          await refundCharge({ userId: notebook.userId, ref: source.id }, "source");
+        }
+      }
+
+      await setSourceStatus({
         sourceId: source.id,
         notebookId: source.notebookId,
         status: "FAILED",

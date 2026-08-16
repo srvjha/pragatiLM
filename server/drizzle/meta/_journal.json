@@ -43,6 +43,13 @@
       "when": 1785176908429,
       "tag": "0005_bright_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786891214923,
+      "tag": "0006_stiff_owl",
+      "breakpoints": true
     }
   ]
 }

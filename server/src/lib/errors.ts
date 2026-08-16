@@ -32,6 +32,26 @@ export const notFound = (message = "Not found"): AppError =>
 export const conflict = (message: string, details?: unknown): AppError =>
   new AppError(409, "CONFLICT", message, details);
 
+/**
+ * Out of credits for this period.
+ *
+ * 402 rather than 429: this is not "too fast", it is "the allowance is spent",
+ * and waiting will not help before the period resets. The client renders it as an
+ * upgrade prompt, so `details` carries the numbers it needs to say something
+ * specific instead of "something went wrong".
+ */
+export const insufficientCredits = (message: string, details?: unknown): AppError =>
+  new AppError(402, "INSUFFICIENT_CREDITS", message, details);
+
+/**
+ * The action is not on this plan at any balance.
+ *
+ * Distinct from insufficientCredits because the remedy is different: no amount of
+ * waiting or spending less unlocks it. Only changing plan does.
+ */
+export const planRequired = (message: string, details?: unknown): AppError =>
+  new AppError(403, "PLAN_REQUIRED", message, details);
+
 export const payloadTooLarge = (message: string): AppError =>
   new AppError(413, "PAYLOAD_TOO_LARGE", message);
 

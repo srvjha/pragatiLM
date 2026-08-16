@@ -5,8 +5,10 @@ import { db } from "@/db/client";
 import { podcasts } from "@/db/schema";
 import { buildScript, saveEpisode, synthesiseEpisode } from "@/services/podcast/podcast.service";
 import { podcastRun } from "@/services/artifact-run.service";
+import { refundCharge } from "@/services/billing/entitlements.service";
 import { channels, publish } from "@/lib/events";
 import { childLogger } from "@/lib/logger";
+import type { CreditCharge } from "@/billing/costs";
 import type { VoicePair } from "@/providers/tts";
 import type { PodcastLanguage } from "@/types/domain";
 
@@ -19,6 +21,7 @@ export type PodcastJob = {
   lengthMinutes: number;
   voicePair?: VoicePair;
   language?: PodcastLanguage;
+  credit?: CreditCharge;
 };
 
 async function run(job: Job<PodcastJob>): Promise<void> {
@@ -65,6 +68,10 @@ export function createPodcastWorker(): Worker<PodcastJob> {
     log.error({ err: error }, "podcast failed");
     if (!job?.data.podcastId) return;
 
+    // Twenty five credits — the most expensive action in the product, and the
+    // one where silently keeping the charge for an episode that never rendered
+    // would be most obviously unfair.
+    void refundCharge(job.data.credit, "podcast");
     void podcastRun(job.data.podcastId).fail(error.message);
   });
 

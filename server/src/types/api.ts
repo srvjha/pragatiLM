@@ -29,6 +29,27 @@ export type NotebookListItemDto = NotebookDto & {
 export type CreateNotebookBody = { name?: string };
 export type UpdateNotebookBody = { name: string };
 
+export type PlanDto = {
+  code: string;
+  name: string;
+  blurb: string;
+  /** Paise, not rupees. Money is an integer here for the same reason it is in the database. */
+  pricePaise: number;
+  monthlyCredits: number;
+  notebooks: number;
+  sourcesPerNotebook: number;
+  storageBytes: number;
+  podcasts: boolean;
+};
+
+export type BillingStateDto = {
+  plan: PlanDto;
+  /** Credits left in the current period. */
+  balance: number;
+  periodStart: string;
+  periodEnd: string;
+};
+
 export type SourceType = "PDF" | "TEXT" | "WEB" | "YOUTUBE" | "VTT";
 
 export type SourceStatus =

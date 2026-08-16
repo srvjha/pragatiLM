@@ -3,6 +3,7 @@ import { z } from "zod";
 import { desc, eq, and } from "drizzle-orm";
 import { validate } from "@/middleware/validate";
 import { requireNotebook } from "@/middleware/ownership";
+import { chargeFor, requireCredits } from "@/middleware/credits";
 import { db } from "@/db/client";
 import { podcasts, podcastAudio } from "@/db/schema";
 import { podcastQueue } from "@/queues";
@@ -52,33 +53,41 @@ podcastRouter.get("/", (req, res, next) => {
     .catch(next);
 });
 
-podcastRouter.post("/", validate({ body: createBody }), (req, res, next) => {
-  const notebookId = requireNotebook(req).id;
-  const body = req.body as z.infer<typeof createBody>;
+// The most expensive action in the product by a factor of twenty five, and the
+// only one gated on the plan itself rather than only on the balance.
+podcastRouter.post(
+  "/",
+  validate({ body: createBody }),
+  requireCredits("podcast"),
+  (req, res, next) => {
+    const notebookId = requireNotebook(req).id;
+    const body = req.body as z.infer<typeof createBody>;
 
-  db.insert(podcasts)
-    .values({ notebookId, title: "Generating...", status: "QUEUED", stage: "SCRIPTING" })
-    .returning()
-    .then(async ([row]) => {
-      if (!row) throw new Error("Insert returned no row");
+    db.insert(podcasts)
+      .values({ notebookId, title: "Generating...", status: "QUEUED", stage: "SCRIPTING" })
+      .returning()
+      .then(async ([row]) => {
+        if (!row) throw new Error("Insert returned no row");
 
-      await podcastQueue.add(
-        "generate-podcast",
-        {
-          podcastId: row.id,
-          notebookId,
-          sourceIds: body.sourceIds,
-          lengthMinutes: body.lengthMinutes,
-          voicePair: body.voicePair,
-          language: body.language,
-        },
-        { attempts: 1 },
-      );
+        await podcastQueue.add(
+          "generate-podcast",
+          {
+            podcastId: row.id,
+            notebookId,
+            sourceIds: body.sourceIds,
+            lengthMinutes: body.lengthMinutes,
+            voicePair: body.voicePair,
+            language: body.language,
+            credit: chargeFor(req, row.id),
+          },
+          { attempts: 1 },
+        );
 
-      res.status(202).json({ data: row });
-    })
-    .catch(next);
-});
+        res.status(202).json({ data: row });
+      })
+      .catch(next);
+  },
+);
 
 podcastRouter.get("/:podcastId", validate({ params: podcastIdParams }), (req, res, next) => {
   db.select()
