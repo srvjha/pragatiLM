@@ -50,6 +50,13 @@
       "when": 1786891214923,
       "tag": "0006_stiff_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786897839130,
+      "tag": "0007_eager_colonel_america",
+      "breakpoints": true
     }
   ]
 }

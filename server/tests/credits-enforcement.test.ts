@@ -1,11 +1,11 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { createApp } from "@/app";
 import { db } from "@/db/client";
-import { creditLedger, subscriptions } from "@/db/schema";
+import { creditLedger, payments, subscriptions } from "@/db/schema";
 import { FREE_PLAN } from "@/billing/plans";
 import { CREDIT_COSTS } from "@/billing/costs";
 import { signedInUser } from "./auth-helper";
-import type { BillingStateDto, NotebookDto } from "@/types/api";
+import type { BillingStateDto, NotebookDto, PaymentDto } from "@/types/api";
 
 const app = createApp();
 
@@ -254,5 +254,57 @@ describe("the billing state", () => {
     expect(state.subscription?.status).toBe("ACTIVE");
     // Not cancelled, so the date reads as "renews on" rather than "ends on".
     expect(state.subscription?.cancelAtPeriodEnd).toBeNull();
+  });
+});
+
+describe("invoices", () => {
+  it("is empty until a payment is taken", async () => {
+    const response = await agent.get("/api/billing/invoices");
+
+    expect(response.status).toBe(200);
+    expect((response.body as { data: unknown[] }).data).toEqual([]);
+  });
+
+  it("reports what was charged, newest first", async () => {
+    await db.insert(payments).values([
+      {
+        userId,
+        providerPaymentId: "pay_older",
+        amountPaise: 39_900,
+        planCode: "plus",
+        paidAt: new Date("2026-01-10T00:00:00Z"),
+      },
+      {
+        userId,
+        providerPaymentId: "pay_newer",
+        amountPaise: 99_900,
+        planCode: "pro",
+        paidAt: new Date("2026-02-10T00:00:00Z"),
+      },
+    ]);
+
+    const rows = ((await agent.get("/api/billing/invoices")).body as { data: PaymentDto[] }).data;
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.planCode).toBe("pro");
+    // Stored as the provider reported it, not recomputed from today's price.
+    expect(rows[0]?.amountPaise).toBe(99_900);
+  });
+
+  it("never shows one person another person's receipts", async () => {
+    await db.insert(payments).values({
+      userId,
+      providerPaymentId: "pay_mine",
+      amountPaise: 39_900,
+      planCode: "plus",
+      paidAt: new Date(),
+    });
+
+    const stranger = await signedInUser(app, "stranger@example.com");
+    const rows = (
+      (await stranger.agent.get("/api/billing/invoices")).body as { data: PaymentDto[] }
+    ).data;
+
+    expect(rows).toEqual([]);
   });
 });

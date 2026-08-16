@@ -52,6 +52,15 @@ export type SubscriptionDto = {
   cancelAtPeriodEnd: string | null;
 };
 
+export type PaymentDto = {
+  id: string;
+  /** Paise, as the provider reported it — not recomputed from today's price. */
+  amountPaise: number;
+  currency: string;
+  planCode: string;
+  paidAt: string;
+};
+
 export type BillingStateDto = {
   plan: PlanDto;
   /** Credits left in the current period. */

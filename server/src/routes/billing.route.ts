@@ -16,7 +16,8 @@ import { paidPlans, PLANS } from "@/billing/plans";
 import { CREDIT_COSTS } from "@/billing/costs";
 import { badRequest } from "@/lib/errors";
 import { childLogger } from "@/lib/logger";
-import type { BillingStateDto, PlanDto } from "@/types/api";
+import { listPayments } from "@/db/repositories/billing.repository";
+import type { BillingStateDto, PaymentDto, PlanDto } from "@/types/api";
 
 const log = childLogger("billing:route");
 
@@ -94,6 +95,29 @@ billingRouter.post(
   (req: Request, res: Response, next: NextFunction) => {
     cancelForUser(requireUser(req).id)
       .then((endsAt) => res.json({ data: { endsAt: endsAt.toISOString() } }))
+      .catch(next);
+  },
+);
+
+/**
+ * Receipts. Read from the payments table rather than the raw webhook log, which
+ * exists for disputes and would mean trusting the shape of somebody else's JSON.
+ */
+billingRouter.get(
+  "/billing/invoices",
+  requireSession,
+  (req: Request, res: Response, next: NextFunction) => {
+    listPayments(requireUser(req).id)
+      .then((rows) => {
+        const data: PaymentDto[] = rows.map((row) => ({
+          id: row.id,
+          amountPaise: row.amountPaise,
+          currency: row.currency,
+          planCode: row.planCode,
+          paidAt: row.paidAt.toISOString(),
+        }));
+        res.json({ data });
+      })
       .catch(next);
   },
 );
