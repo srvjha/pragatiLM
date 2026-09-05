@@ -1,0 +1,130 @@
+name: Deploy
+
+# Pushing to main is what deploys. Nothing else does, and there is no path that
+# ships code the checks below have not passed.
+on:
+  push:
+    branches: [main]
+  # So a failed deploy can be retried, or a known-good main re-shipped, without
+  # an empty commit.
+  workflow_dispatch:
+
+# One deploy at a time. Two overlapping runs would race on `git pull` and on the
+# compose rebuild, and the loser would leave the server on a half-built image.
+# `cancel-in-progress: false` because a deploy that has already started should
+# finish rather than be killed part way through a migration.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # Deliberately the same checks as ci.yml rather than a shared workflow. The
+  # duplication is twenty lines; the indirection would be a thing to understand
+  # every time this file is read, and this is the file that ships to production.
+  test:
+    name: Checks
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: notebook_rag
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      qdrant:
+        image: qdrant/qdrant:v1.18.3
+        ports: ["6333:6333"]
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/notebook_rag
+      REDIS_URL: redis://localhost:6379
+      QDRANT_URL: http://localhost:6333
+      EMBEDDING_PROVIDER: fake
+      BETTER_AUTH_SECRET: ci-not-a-real-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Server checks
+        working-directory: server
+        run: |
+          npm ci
+          npm run typecheck
+          npm run lint
+          npm test
+
+  deploy:
+    name: Deploy to VPS
+    needs: test
+    runs-on: ubuntu-latest
+    # Create this in Settings > Environments to require a click before a deploy,
+    # or to restrict which branches may reach it. Harmless if it does not exist.
+    environment: production
+
+    steps:
+      - name: Ship it
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          # Long enough for a rebuild of both images on a shared vCPU, which is
+          # the slow part and has taken several minutes before.
+          command_timeout: 20m
+          script_stops: true
+          script: |
+            set -euo pipefail
+            cd ~/pragatiLM
+
+            # --ff-only so a deploy can never silently merge or rewrite. If the
+            # server has drifted from main, this stops instead of guessing.
+            git fetch origin main
+            git checkout main
+            git merge --ff-only origin/main
+            echo "now at: $(git log -1 --format='%h %s')"
+
+            cd server
+
+            # The migrate service runs first and the api waits for it to
+            # succeed, so a deploy carrying a schema change can never serve
+            # requests against the old schema.
+            docker compose -f docker-compose.prod.yml up -d --build
+
+            # Old images are what actually fill this disk: every --build leaves
+            # the previous one behind. Volumes and running images are untouched.
+            docker image prune -f
+
+      # Proves the thing that matters, from outside the machine: not "did the
+      # command exit 0" but "does the product answer". The API reports 503 when
+      # a datastore is unreachable, so this catches a container that came back
+      # up without its dependencies.
+      - name: Wait for the API to report healthy
+        run: |
+          for i in $(seq 1 30); do
+            body=$(curl -fsS -m 10 https://backend-pragati.srvjha.in/api/health || true)
+            case "$body" in
+              *'"status":"ok"'*) echo "healthy: $body"; exit 0 ;;
+            esac
+            echo "attempt $i: not ready yet"
+            sleep 5
+          done
+          echo "::error::the API did not report healthy within 150s"
+          curl -sS -m 10 https://backend-pragati.srvjha.in/api/health || true
+          exit 1
