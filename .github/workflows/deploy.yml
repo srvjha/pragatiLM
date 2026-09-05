@@ -50,6 +50,10 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/notebook_rag
       REDIS_URL: redis://localhost:6379
       QDRANT_URL: http://localhost:6333
+      # Required, and easy to miss because development reads it from .env. The
+      # suite makes cross-origin requests through the real CORS middleware, so
+      # this is not decoration.
+      WEB_ORIGIN: http://localhost:3000
       EMBEDDING_PROVIDER: fake
       BETTER_AUTH_SECRET: ci-not-a-real-secret
 
