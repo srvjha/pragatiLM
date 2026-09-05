@@ -1,0 +1,95 @@
+name: CI
+
+# Every pull request, and every push to a branch with one open. Not `main`:
+# deploy.yml runs the same checks there before it ships anything, and running
+# them twice on the same commit would only slow the deploy down.
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  server:
+    name: Server
+    runs-on: ubuntu-latest
+
+    # The suite runs against real datastores rather than mocks, because the
+    # things most worth testing here — the cascades, the ownership boundary, the
+    # advisory lock that stops two requests spending the same credit — are
+    # exactly what a mock would paper over. These are the same images as
+    # production.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: notebook_rag
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      qdrant:
+        image: qdrant/qdrant:v1.18.3
+        ports: ["6333:6333"]
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/notebook_rag
+      REDIS_URL: redis://localhost:6379
+      QDRANT_URL: http://localhost:6333
+      # No model provider key, and none needed: the suite uses the fake embedder
+      # and never calls a paid API. A key here would mean every pull request
+      # spent money to prove the same thing.
+      EMBEDDING_PROVIDER: fake
+      BETTER_AUTH_SECRET: ci-not-a-real-secret
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  client:
+    name: Client
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+      # The build is a test in its own right here: it is what catches a
+      # `useSearchParams` without a Suspense boundary, which typecheck and the
+      # unit tests both pass straight over.
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://backend-pragati.srvjha.in
