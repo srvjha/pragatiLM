@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
 
 const CATALOGUE = {
   billingEnabled: true,
-  creditCosts: { chat: 1, source: 1, roadmap: 3, podcast: 25 },
+  creditCosts: { chat: 1, source: 1, roadmap: 3, podcast: 8 },
   plans: [
     {
       code: "free",
@@ -81,8 +81,10 @@ describe("the plan table", () => {
   it("says what a credit buys, from the server's own weights", async () => {
     mount();
 
-    expect(await screen.findByText("25 credits")).toBeInTheDocument();
-    expect(screen.getByText("An audio overview")).toBeInTheDocument();
+    expect(await screen.findByText("8 credits")).toBeInTheDocument();
+    // Named as a rate, not a total: "8 credits" beside "An audio overview"
+    // would read as the price of a whole episode.
+    expect(screen.getByText("A minute of audio overview")).toBeInTheDocument();
   });
 
   it("names the audio allowance as a length, so the plans differ visibly", async () => {

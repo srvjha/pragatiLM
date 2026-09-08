@@ -90,12 +90,18 @@ export function PlanTable() {
           />
           <Cost label="Adding a source" value={data.creditCosts.source} />
           <Cost label="A learning roadmap" value={data.creditCosts.roadmap} />
-          <Cost label="An audio overview" value={data.creditCosts.podcast} />
+          {/* Per minute, and it has to say so: "8 credits" beside "An audio
+              overview" reads as the price of an episode, which it is not. */}
+          <Cost
+            label="A minute of audio overview"
+            value={data.creditCosts.podcast}
+          />
         </dl>
         <p className="text-muted-foreground mt-6 max-w-2xl text-sm leading-relaxed">
-          An audio overview costs more because it genuinely costs more to make —
-          several minutes of generated speech against a few seconds of reading.
-          If a job fails, its credits go back.
+          Audio is charged by the minute because that is how it is made: a two
+          minute overview is {2 * data.creditCosts.podcast} credits, a ten
+          minute one is {10 * data.creditCosts.podcast}. The length picker shows
+          the price before you spend it, and if a job fails its credits go back.
         </p>
       </div>
     </>
