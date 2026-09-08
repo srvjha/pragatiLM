@@ -69,8 +69,10 @@ describe("a new account", () => {
     expect(response.status).toBe(200);
     const body = response.body as { data: { plans: { code: string }[]; billingEnabled: boolean } };
     expect(body.data.plans.map((plan) => plan.code)).toEqual(["free", "plus", "pro"]);
-    // No Razorpay keys in the test environment, so checkout is unavailable.
-    expect(body.data.billingEnabled).toBe(false);
+    // Shape, not value. Whether billing is enabled depends on whether the person
+    // running this has Razorpay keys in their .env, and a test that fails
+    // because a developer configured payments is testing their machine.
+    expect(typeof body.data.billingEnabled).toBe("boolean");
   });
 });
 
@@ -137,10 +139,13 @@ describe("asking a question", () => {
 });
 
 describe("audio overviews", () => {
-  it("are refused on free with 403, not 402, and cost nothing", async () => {
+  it("are refused on free at a length beyond the cap, with 403 not 402", async () => {
     const before = await balance();
 
-    const response = await agent.post(`/api/notebooks/${notebookId}/podcasts`).send({});
+    // Ten minutes is a paid length. Free is capped at two.
+    const response = await agent
+      .post(`/api/notebooks/${notebookId}/podcasts`)
+      .send({ lengthMinutes: 10 });
 
     // A plan refusal, not a balance one: no amount of credits unlocks this, and
     // the client has to offer an upgrade rather than "wait for the reset".
@@ -149,7 +154,18 @@ describe("audio overviews", () => {
     expect(await balance()).toBe(before);
   });
 
-  it("charge twenty five credits on a plan that includes them", async () => {
+  it("let free generate the two minute preview", async () => {
+    const before = await balance();
+
+    const response = await agent
+      .post(`/api/notebooks/${notebookId}/podcasts`)
+      .send({ lengthMinutes: 2 });
+
+    expect(response.status).toBe(202);
+    expect(await balance()).toBe(before - CREDIT_COSTS.podcast * 2);
+  });
+
+  it("charge per minute on a plan that allows the length", async () => {
     await db.insert(subscriptions).values({
       userId,
       planCode: "plus",
@@ -160,10 +176,12 @@ describe("audio overviews", () => {
     });
 
     const before = await balance();
-    const response = await agent.post(`/api/notebooks/${notebookId}/podcasts`).send({});
+    const response = await agent
+      .post(`/api/notebooks/${notebookId}/podcasts`)
+      .send({ lengthMinutes: 6 });
 
     expect(response.status).toBe(202);
-    expect(await balance()).toBe(before - CREDIT_COSTS.podcast);
+    expect(await balance()).toBe(before - CREDIT_COSTS.podcast * 6);
   });
 });
 

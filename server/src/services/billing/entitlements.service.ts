@@ -147,8 +147,9 @@ export async function charge(
   const cost = creditsFor(action) * units;
 
   // A gate that is not about the balance at all: no number of credits buys a
-  // podcast on a plan that does not include them.
-  if (action === "podcast" && !entitlement.plan.limits.podcasts) {
+  // twenty minute episode on a plan capped at two. `units` is the length in
+  // minutes for this action, which is why the cap can be checked here at all.
+  if (action === "podcast" && units > entitlement.plan.limits.maxPodcastMinutes) {
     return {
       ok: false,
       reason: "not-on-plan",
@@ -244,7 +245,9 @@ export async function refundCharge(
   if (!charge?.userId || !charge.ref) return;
 
   try {
-    await refund(charge.userId, action, charge.ref);
+    // Returns what was actually taken. A ten minute episode was charged eighty
+    // credits, and the one-unit default would hand back eight.
+    await refund(charge.userId, action, charge.ref, { units: charge.units ?? 1 });
   } catch (error) {
     log.error({ err: error, action, ref: charge.ref }, "could not refund a failed job");
   }

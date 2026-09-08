@@ -29,8 +29,19 @@ export function planLimits(plan: PlanDto): string[] {
     `${plan.notebooks} notebooks`,
     `${plan.sourcesPerNotebook} sources per notebook`,
     `${storageLabel(plan.storageBytes)} of storage`,
-    plan.podcasts ? "Audio overviews" : "No audio overviews",
+    audioLine(plan.maxPodcastMinutes),
   ];
+}
+
+/**
+ * What a plan's audio allowance is, said as a length.
+ *
+ * Free can generate a two minute overview, so "No audio overviews" would be a
+ * lie — and the length is the thing that actually differs between plans now.
+ */
+function audioLine(maxMinutes: number): string {
+  if (maxMinutes <= 0) return "No audio overviews";
+  return `Audio overviews up to ${maxMinutes} min`;
 }
 
 /**

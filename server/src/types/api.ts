@@ -39,7 +39,8 @@ export type PlanDto = {
   notebooks: number;
   sourcesPerNotebook: number;
   storageBytes: number;
-  podcasts: boolean;
+  /** Longest audio overview this plan may generate, in minutes. 0 means none. */
+  maxPodcastMinutes: number;
 };
 
 export type SubscriptionDto = {

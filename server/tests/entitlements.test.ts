@@ -131,29 +131,45 @@ describe("charging", () => {
     expect((await entitlementFor(userId, JANUARY)).balance).toBe(0);
   });
 
-  it("refuses a podcast on free however many credits are left", async () => {
-    const result = await charge(userId, "podcast", "podcast-1", { now: JANUARY });
-
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.reason).toBe("not-on-plan");
-    // Balance untouched: the refusal is about the plan, not the balance.
-    expect((await entitlementFor(userId, JANUARY)).balance).toBe(FREE_PLAN.limits.monthlyCredits);
-  });
-
-  it("charges a podcast at its real weight on a plan that allows it", async () => {
-    await subscribe("plus", new Date("2026-01-10T00:00:00Z"), new Date("2026-02-10T00:00:00Z"));
-    const result = await charge(userId, "podcast", "podcast-1", { now: JANUARY });
+  it("lets free generate the short episode it is allowed", async () => {
+    // The preview is the whole reason Free has any audio at all: nobody pays for
+    // a feature they have never heard.
+    const result = await charge(userId, "podcast", "podcast-1", {
+      units: FREE_PLAN.limits.maxPodcastMinutes,
+      now: JANUARY,
+    });
 
     expect(result.ok).toBe(true);
     expect(result.ok && result.balance).toBe(
-      PLUS_PLAN.limits.monthlyCredits - CREDIT_COSTS.podcast,
+      FREE_PLAN.limits.monthlyCredits - CREDIT_COSTS.podcast * FREE_PLAN.limits.maxPodcastMinutes,
+    );
+  });
+
+  it("refuses a length beyond the plan's cap, whatever the balance", async () => {
+    const result = await charge(userId, "podcast", "podcast-1", { units: 10, now: JANUARY });
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.reason).toBe("not-on-plan");
+    // Balance untouched: the refusal is about the length, not the balance.
+    expect((await entitlementFor(userId, JANUARY)).balance).toBe(FREE_PLAN.limits.monthlyCredits);
+  });
+
+  it("charges an episode per minute, not per episode", async () => {
+    await subscribe("plus", new Date("2026-01-10T00:00:00Z"), new Date("2026-02-10T00:00:00Z"));
+    const result = await charge(userId, "podcast", "podcast-1", { units: 6, now: JANUARY });
+
+    expect(result.ok).toBe(true);
+    // Six minutes costs twice what three does. A flat weight made length free
+    // while a ten minute episode costs us three times a three minute one.
+    expect(result.ok && result.balance).toBe(
+      PLUS_PLAN.limits.monthlyCredits - CREDIT_COSTS.podcast * 6,
     );
   });
 });
 
 describe("refunding", () => {
   it("returns the credits when the work failed", async () => {
-    await charge(userId, "podcast", "podcast-1", { now: JANUARY });
+    await charge(userId, "podcast", "podcast-1", { units: 2, now: JANUARY });
     await subscribe("plus", new Date("2026-01-10T00:00:00Z"), new Date("2026-02-10T00:00:00Z"));
 
     await charge(userId, "chat", "message-1", { now: JANUARY });

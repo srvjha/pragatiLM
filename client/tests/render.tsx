@@ -35,7 +35,7 @@ export function billingState(overrides: Record<string, unknown> = {}) {
       notebooks: 2,
       sourcesPerNotebook: 5,
       storageBytes: 25 * 1024 ** 2,
-      podcasts: false,
+      maxPodcastMinutes: 2,
     },
     balance: 25,
     periodStart: "2026-08-01T00:00:00.000Z",

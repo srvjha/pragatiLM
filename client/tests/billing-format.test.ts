@@ -56,7 +56,7 @@ describe("planLimits", () => {
     notebooks: 15,
     sourcesPerNotebook: 100,
     storageBytes: 2 * 1024 ** 3,
-    podcasts: true,
+    maxPodcastMinutes: 10,
   };
 
   it("names what the plan includes", () => {
@@ -65,14 +65,17 @@ describe("planLimits", () => {
       "15 notebooks",
       "100 sources per notebook",
       "2 GB of storage",
-      "Audio overviews",
+      "Audio overviews up to 10 min",
     ]);
   });
 
-  it("states an absent feature rather than omitting it", () => {
-    // The card renders a struck-through row from this, so a plan without audio
-    // has to say so; dropping the line would make Free look like it has one.
-    expect(planLimits({ ...plan, podcasts: false })).toContain(
+  it("names the audio allowance as a length, not a yes or no", () => {
+    // Free can generate a two minute overview, so "No audio overviews" would be
+    // a lie — and the length is what actually differs between plans now.
+    expect(planLimits({ ...plan, maxPodcastMinutes: 2 })).toContain(
+      "Audio overviews up to 2 min",
+    );
+    expect(planLimits({ ...plan, maxPodcastMinutes: 0 })).toContain(
       "No audio overviews",
     );
   });

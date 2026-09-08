@@ -43,7 +43,7 @@ export type PodcastLanguage = "en" | "hi";
 export function createPodcast(
   notebookId: string,
   sourceIds: string[],
-  lengthMinutes: 3 | 6 | 10,
+  lengthMinutes: 2 | 3 | 6 | 10,
   voicePair: string,
   language: PodcastLanguage = "en",
 ): Promise<PodcastDto> {
