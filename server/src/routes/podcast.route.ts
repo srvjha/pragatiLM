@@ -16,7 +16,7 @@ const createBody = z.object({
   // Empty means every ready source, which is what the picker sends when
   // nothing has been unticked.
   sourceIds: z.array(z.uuid()).default([]),
-  lengthMinutes: z.union([z.literal(3), z.literal(6), z.literal(10)]).default(3),
+  lengthMinutes: z.union([z.literal(2), z.literal(3), z.literal(6), z.literal(10)]).default(3),
   voicePair: z.enum(VOICE_PAIR_IDS).default(DEFAULT_VOICE_PAIR),
   // What the hosts speak, which is not necessarily what the sources are in.
   language: z.enum(["en", "hi"]).default("en"),
@@ -53,12 +53,18 @@ podcastRouter.get("/", (req, res, next) => {
     .catch(next);
 });
 
-// The most expensive action in the product by a factor of twenty five, and the
-// only one gated on the plan itself rather than only on the balance.
+/**
+ * The most expensive action in the product, and the only one gated on the plan
+ * itself rather than only on the balance.
+ *
+ * Charged per minute, so the units come from the requested length — which is
+ * also what the plan's cap is compared against. Mounted after validation, so a
+ * length the schema rejects never reaches the ledger.
+ */
 podcastRouter.post(
   "/",
   validate({ body: createBody }),
-  requireCredits("podcast"),
+  requireCredits("podcast", (req) => (req.body as { lengthMinutes?: number }).lengthMinutes ?? 3),
   (req, res, next) => {
     const notebookId = requireNotebook(req).id;
     const body = req.body as z.infer<typeof createBody>;

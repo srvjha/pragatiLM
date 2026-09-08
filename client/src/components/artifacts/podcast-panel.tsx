@@ -27,9 +27,19 @@ import type { PodcastDto, PodcastTurn } from "@/types/api";
 import type { PodcastLanguage } from "@/features/artifacts/api";
 import { episodeTimeline, turnAt } from "@/features/artifacts/episode-timeline";
 import { useEpisodePlayer } from "@/features/artifacts/use-episode-player";
-import { creditRefusal, useRefreshBalance } from "@/features/billing/hooks";
+import {
+  creditRefusal,
+  useBillingState,
+  usePlans,
+  useRefreshBalance,
+} from "@/features/billing/hooks";
 
-const lengths = [3, 6, 10] as const;
+/**
+ * Mirrors PODCAST_LENGTHS on the server. Two minutes is the one a free plan can
+ * afford, and is a real episode written to that length rather than a truncated
+ * longer one.
+ */
+const lengths = [2, 3, 6, 10] as const;
 
 /**
  * Each language is named in itself, because the person choosing Hindi reads
@@ -567,6 +577,13 @@ function CreateDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [minutes, setMinutes] = useState<(typeof lengths)[number]>(3);
+
+  // What this plan may generate, and what a minute costs. Both come from the
+  // server so the buttons cannot promise a length the API will refuse.
+  const { data: billing } = useBillingState();
+  const { data: catalogue } = usePlans();
+  const maxMinutes = billing?.plan.maxPodcastMinutes ?? 0;
+  const perMinute = catalogue?.creditCosts.podcast ?? 0;
   const [voicePair, setVoicePair] = useState("warm");
   const [language, setLanguage] = useState<PodcastLanguage>("en");
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
@@ -615,21 +632,38 @@ function CreateDialog({
 
         <Fieldset label="Length">
           <div className="flex gap-2">
-            {lengths.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setMinutes(option)}
-                className={cn(
-                  "flex-1 rounded-md border py-2.5 text-sm transition-colors",
-                  minutes === option
-                    ? "border-primary bg-accent"
-                    : "hover:bg-accent/50",
-                )}
-              >
-                {option} min
-              </button>
-            ))}
+            {lengths.map((option) => {
+              // Disabled rather than hidden: seeing that 10 minutes exists and
+              // needs a different plan is the whole point of showing it.
+              const beyondPlan = maxMinutes > 0 && option > maxMinutes;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  disabled={beyondPlan}
+                  title={
+                    beyondPlan
+                      ? `Your plan covers up to ${maxMinutes} minutes`
+                      : undefined
+                  }
+                  onClick={() => setMinutes(option)}
+                  className={cn(
+                    "flex-1 rounded-md border py-2 text-sm transition-colors",
+                    "disabled:cursor-not-allowed disabled:opacity-40",
+                    minutes === option && !beyondPlan
+                      ? "border-primary bg-accent"
+                      : "not-disabled:hover:bg-accent/50",
+                  )}
+                >
+                  <span className="block">{option} min</span>
+                  {perMinute > 0 && (
+                    <span className="text-muted-foreground block text-[0.7rem] tabular-nums">
+                      {option * perMinute} credits
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </Fieldset>
 

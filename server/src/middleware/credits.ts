@@ -9,6 +9,8 @@ declare module "express-serve-static-core" {
   interface Request {
     /** The ledger reference this request was charged under, for a later refund. */
     creditRef?: string;
+    /** How many units it was charged, so the refund returns the same amount. */
+    creditUnits?: number;
   }
 }
 
@@ -65,6 +67,7 @@ export function requireCredits(
       .then((result) => {
         if (result.ok) {
           req.creditRef = ref;
+          req.creditUnits = units;
           next();
           return;
         }
@@ -72,12 +75,17 @@ export function requireCredits(
         const cost = creditsFor(action) * units;
 
         if (result.reason === "not-on-plan") {
+          // Names the limit rather than the absence. "Not included" was true
+          // when Free had no audio at all; now the honest sentence is that this
+          // length is not, and the shorter one is.
+          const cap = result.plan.limits.maxPodcastMinutes;
           next(
-            planRequired(`Audio overviews are not included in the ${result.plan.name} plan.`, {
-              action,
-              plan: result.plan.code,
-              needed: cost,
-            }),
+            planRequired(
+              cap > 0
+                ? `${result.plan.name} covers audio overviews up to ${cap} minutes.`
+                : `Audio overviews are not included in the ${result.plan.name} plan.`,
+              { action, plan: result.plan.code, needed: cost, maxPodcastMinutes: cap },
+            ),
           );
           return;
         }
@@ -118,5 +126,9 @@ export function requireCredits(
  */
 export function chargeFor(req: Request, ref?: string): CreditCharge | undefined {
   if (!req.creditRef) return undefined;
-  return { userId: requireUser(req).id, ref: ref ?? req.creditRef };
+  return {
+    userId: requireUser(req).id,
+    ref: ref ?? req.creditRef,
+    units: req.creditUnits ?? 1,
+  };
 }

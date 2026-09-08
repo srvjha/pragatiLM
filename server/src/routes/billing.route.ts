@@ -33,7 +33,7 @@ function toPlanDto(plan: (typeof PLANS)[number]): PlanDto {
     notebooks: plan.limits.notebooks,
     sourcesPerNotebook: plan.limits.sourcesPerNotebook,
     storageBytes: plan.limits.storageBytes,
-    podcasts: plan.limits.podcasts,
+    maxPodcastMinutes: plan.limits.maxPodcastMinutes,
   };
 }
 

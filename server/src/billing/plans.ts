@@ -1,4 +1,4 @@
-import { CREDIT_COSTS } from "./costs";
+import { CREDIT_COSTS, PODCAST_LENGTHS } from "./costs";
 
 /**
  * The plans, defined in code for the same reason packs are: they are product
@@ -18,8 +18,16 @@ export type PlanLimits = {
   notebooks: number;
   sourcesPerNotebook: number;
   storageBytes: number;
-  /** Podcast generation is the one action expensive enough to gate outright. */
-  podcasts: boolean;
+  /**
+   * The longest audio overview this plan may generate, in minutes. Zero means
+   * none at all.
+   *
+   * A length rather than a boolean, because "no audio overviews" turned out to
+   * be the wrong gate: somebody who has never heard one has no reason to pay for
+   * one. Free gets the two minute length — a real episode, charged at its real
+   * cost — and the longer ones are what the paid plans buy.
+   */
+  maxPodcastMinutes: number;
 };
 
 export type Plan = {
@@ -38,9 +46,12 @@ const GB = 1024 * MB;
  *
  * Twenty five credits is enough to add a document and have a real conversation
  * about it, which is the only thing the free tier has to prove. It is also the
- * whole exposure: a free account cannot cost more than twenty five answers, and
- * cannot generate a podcast at all — one episode would cost more than the
- * entire free allowance.
+ * whole exposure: a free account cannot cost more than twenty five answers.
+ *
+ * A two minute audio overview costs sixteen of those twenty five, which is a
+ * deliberate trade rather than an oversight. It is the one feature nobody will
+ * pay for without having heard, and spending most of a month's allowance on it
+ * is a choice the person makes knowingly — the length picker shows the price.
  */
 export const FREE_PLAN: Plan = {
   code: "free",
@@ -52,7 +63,7 @@ export const FREE_PLAN: Plan = {
     notebooks: 2,
     sourcesPerNotebook: 5,
     storageBytes: 25 * MB,
-    podcasts: false,
+    maxPodcastMinutes: 2,
   },
 };
 
@@ -76,7 +87,7 @@ export const PLUS_PLAN: Plan = {
     notebooks: 15,
     sourcesPerNotebook: 100,
     storageBytes: 2 * GB,
-    podcasts: true,
+    maxPodcastMinutes: 10,
   },
 };
 
@@ -90,7 +101,7 @@ export const PRO_PLAN: Plan = {
     notebooks: 100,
     sourcesPerNotebook: 500,
     storageBytes: 10 * GB,
-    podcasts: true,
+    maxPodcastMinutes: 10,
   },
 };
 
@@ -125,10 +136,16 @@ export function paidPlans(): Plan[] {
   );
 }
 
-// A plan whose whole allowance cannot buy the cheapest podcast would offer the
-// action and then refuse it, which is worse than not offering it.
+// A plan whose whole allowance cannot buy even the shortest episode it is
+// allowed would offer the action and then refuse it, which is worse than not
+// offering it at all.
+const SHORTEST_EPISODE = Math.min(...PODCAST_LENGTHS);
+
 for (const plan of PLANS) {
-  if (plan.limits.podcasts && plan.limits.monthlyCredits < CREDIT_COSTS.podcast) {
-    throw new Error(`Plan "${plan.code}" allows podcasts it cannot afford`);
+  if (
+    plan.limits.maxPodcastMinutes > 0 &&
+    plan.limits.monthlyCredits < CREDIT_COSTS.podcast * SHORTEST_EPISODE
+  ) {
+    throw new Error(`Plan "${plan.code}" allows an episode it cannot afford`);
   }
 }

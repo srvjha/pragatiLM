@@ -31,7 +31,7 @@ const CATALOGUE = {
       notebooks: 2,
       sourcesPerNotebook: 5,
       storageBytes: 25 * 1024 ** 2,
-      podcasts: false,
+      maxPodcastMinutes: 2,
     },
     {
       code: "plus",
@@ -42,7 +42,7 @@ const CATALOGUE = {
       notebooks: 15,
       sourcesPerNotebook: 100,
       storageBytes: 2 * 1024 ** 3,
-      podcasts: true,
+      maxPodcastMinutes: 10,
     },
   ],
 };
@@ -85,9 +85,16 @@ describe("the plan table", () => {
     expect(screen.getByText("An audio overview")).toBeInTheDocument();
   });
 
-  it("names an absent feature rather than omitting it", async () => {
+  it("names the audio allowance as a length, so the plans differ visibly", async () => {
     mount();
-    expect(await screen.findByText("No audio overviews")).toBeInTheDocument();
+    // Free can generate a two minute preview, Plus a ten minute episode. That
+    // difference is the upgrade argument, so it has to be on the card.
+    expect(
+      await screen.findByText("Audio overviews up to 2 min"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Audio overviews up to 10 min"),
+    ).toBeInTheDocument();
   });
 
   it("sends a signed out visitor to sign up, carrying the plan", async () => {
