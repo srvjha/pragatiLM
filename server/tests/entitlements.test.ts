@@ -204,6 +204,19 @@ describe("refunding", () => {
     expect((await entitlementFor(userId)).balance).toBe(spent + CREDIT_COSTS.chat);
   });
 
+  it("returns a whole episode, not one minute of it", async () => {
+    // The bug this exists to catch: the weight is per minute, so a ten minute
+    // episode is charged eighty credits. A refund that used the one-unit
+    // default would hand back eight and quietly keep the other seventy two.
+    await subscribe("plus", new Date(Date.now() - 86_400_000), new Date(Date.now() + 86_400_000));
+    await charge(userId, "podcast", "podcast-1", { units: 10 });
+    const spent = (await entitlementFor(userId)).balance;
+
+    await refundCharge({ userId, ref: "podcast-1", units: 10 }, "podcast");
+
+    expect((await entitlementFor(userId)).balance).toBe(spent + CREDIT_COSTS.podcast * 10);
+  });
+
   it("refunds each source of a multi-file upload independently", async () => {
     // One upload charged three credits under one request reference; two of the
     // three sources then fail. Keyed on the source, both come back — which a ref
