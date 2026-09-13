@@ -5,6 +5,19 @@ name: Deploy
 on:
   push:
     branches: [main]
+    # A documentation change cannot alter what runs on the server, and this
+    # workflow is not free: it rebuilds the images and restarts the api and
+    # worker, which is a few seconds of 502s for anyone mid-request. Editing a
+    # README should not cost that.
+    #
+    # A commit touching both prose and code still deploys, because paths-ignore
+    # only skips a push when every changed file matches.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "rag-design/**"
+      - "LICENSE"
+      - ".gitignore"
   # So a failed deploy can be retried, or a known-good main re-shipped, without
   # an empty commit.
   workflow_dispatch:
