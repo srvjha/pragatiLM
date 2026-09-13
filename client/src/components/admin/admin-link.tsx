@@ -29,6 +29,14 @@ import { useIsAdmin } from "@/features/admin/hooks";
  * is the solid ink fill, which is the loudest thing the system offers, plus a
  * shield so it reads as a different kind of destination from the customer
  * navigation it sits beside.
+ *
+ * Hover moves to a solid step rather than dropping opacity. In dark mode the
+ * fill is near white, and a translucent near-white over a dark ground goes
+ * muddy instead of reading as a response to the pointer.
+ *
+ * No title attribute. The label is already visible, so the browser's native
+ * tooltip repeated it in a grey box a beat after hovering, which looked like a
+ * bug rather than a help.
  */
 export function AdminLink({ className }: { className?: string }) {
   const isAdmin = useIsAdmin();
@@ -42,12 +50,11 @@ export function AdminLink({ className }: { className?: string }) {
     <Link
       href="/admin"
       aria-current={active ? "page" : undefined}
-      title="Admin dashboard"
       className={cn(
         "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5",
         "text-[13px] font-medium whitespace-nowrap",
-        "bg-primary text-primary-foreground hover:bg-primary/80",
-        "transition-colors",
+        "bg-primary text-primary-foreground hover:bg-primary-hover",
+        "transition-colors duration-150",
         "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
         // A ring rather than a colour change when active: the fill is already
         // the loudest thing the palette has, and making it louder reads as a
@@ -57,9 +64,11 @@ export function AdminLink({ className }: { className?: string }) {
       )}
     >
       <ShieldIcon className="size-3.5" aria-hidden />
-      {/* The word is hidden on the narrowest widths, where the header is
-          already fighting for room, but the icon and the title remain. */}
+      {/* Hidden on the narrowest widths, where the header is already fighting
+          for room. The accessible name below covers that case, since there is
+          no visible text left to read. */}
       <span className="hidden sm:inline">Admin</span>
+      <span className="sr-only sm:hidden">Admin dashboard</span>
     </Link>
   );
 }

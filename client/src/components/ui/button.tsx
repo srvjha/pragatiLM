@@ -8,7 +8,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        // A solid step, not a fade. --primary is near white in dark mode, and
+        // a translucent near-white over a dark ground goes muddy rather than
+        // reading as a response to the pointer.
+        default: "bg-primary text-primary-foreground hover:bg-primary-hover",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

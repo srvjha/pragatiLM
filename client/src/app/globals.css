@@ -61,6 +61,7 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-primary-hover: var(--primary-hover);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -103,6 +104,11 @@
   --popover-foreground: #101318;
   --primary: #101318;
   --primary-foreground: #f1f2f4;
+  /* One step off primary, for solid fills that need a hover that reads as a
+     state change rather than as fading out. An opacity hover works on a light
+     ground and falls apart on a dark one, where a near-white fill at 80 percent
+     just goes muddy. */
+  --primary-hover: #2a313c;
   --secondary: #e4e6ea;
   --secondary-foreground: #101318;
   --muted: #e7e9ed;
@@ -162,6 +168,7 @@
      gone, since tinting is what turned the old blue purple. */
   --primary: #e8eaed;
   --primary-foreground: #101318;
+  --primary-hover: #ffffff;
   --secondary: #222831;
   --secondary-foreground: #e8eaed;
   --muted: #1c212a;
@@ -205,6 +212,22 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+
+  /*
+   * Tailwind v4 dropped the Preflight rule that gave buttons a pointer cursor,
+   * so every button in this app was showing the text arrow. Restored here
+   * rather than on each component: it is one rule, and the alternative is
+   * remembering it on every new button forever.
+   *
+   * Disabled controls keep the default cursor, because a pointer on something
+   * that cannot be clicked is a lie.
+   */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label[for],
+  summary {
+    cursor: pointer;
   }
 
   body {
