@@ -1,10 +1,12 @@
 # pragatiLM
 
+**[pragati.srvjha.in](https://pragati.srvjha.in)**
+
 An AI research assistant. Create a notebook, add sources to it (PDF, text, web page, YouTube video, VTT transcript), and ask questions answered **only** from those sources. Every answer carries citations, and clicking one opens the original at the exact page, timestamp or character range the answer came from. When the sources cannot support an answer, it says so instead of inventing one.
 
 This folder is a container, not a project. It holds **two fully independent projects** that communicate only over HTTP and SSE:
 
-- **[`server/`](server/README.md)** is the backend: Express API, queue workers, and the `docker-compose.yml` for its three backing services. Clone it alone and it runs.
+- **[`server/`](server/)** is the backend: Express API, queue workers, and the `docker-compose.yml` for its three backing services. Clone it alone and it runs.
 - **[`client/`](client/README.md)** is the frontend: Next.js. Clone it alone and it runs, given an API to point at.
 
 There is no root `package.json`, no workspace, no shared lockfile and no cross project imports.
@@ -33,7 +35,7 @@ Open `http://localhost:3000` and create an account. Email and password needs no 
 
 Check `http://localhost:4000/api/health`. It reports reachability for Postgres, Redis and Qdrant separately, and returns 503 if any of them is down. It also reports whether a queue worker is attached, which is the one failure that looks like nothing at all: without a worker a source is accepted, queued, and never indexed, so the row simply spins. `npm run dev` starts both halves for that reason, and `npm run dev:api` and `npm run dev:worker` still run them separately.
 
-**The one key worth adding** is `OPENAI_API_KEY` in `server/.env`. Without it, set `EMBEDDING_PROVIDER=fake` and everything still runs end to end — uploads, indexing, live status, the viewer — but retrieval returns meaningless results, because the vectors carry no semantics.
+**The one key worth adding** is `OPENAI_API_KEY` in `server/.env`. Without it, set `EMBEDDING_PROVIDER=fake` and everything still runs end to end, including uploads, indexing, live status and the viewer, but retrieval returns meaningless results, because the vectors carry no semantics.
 
 **The environment is parsed once at boot.** Editing `server/.env` does nothing until you restart the API and the worker.
 
@@ -140,6 +142,14 @@ Not supported, by design: OCR of scanned PDFs, and transcription of videos with 
 
 `/dashboard` reports what is in the account and how well it is answering, scoped to the signed in user. The second group is the one worth acting on: citation coverage says whether answers are staying grounded, a climbing refusal rate says the corpus does not cover the questions being asked, and a median correction round above zero points at chunking or retrieval rather than the loop earning its keep.
 
+## Admin
+
+`/admin` is a second dashboard covering the whole deployment rather than one account: signups and active users, what is being used, AI spend broken down by feature, per route latency percentiles, and a bounded audited way to grant credits.
+
+Access is `ADMIN_EMAILS` in the server environment, a comma separated list. It is an environment variable rather than a column on purpose: nothing inside the app can grant it, no migration can enable it by accident, and changing who holds it needs access to the server. It fails closed, so an empty list means nobody is an admin and every admin route answers 404 rather than 403. A 403 would confirm the panel exists.
+
+Two figures there are labelled as estimates on screen, and mean it. AI cost is derived from published list prices, not an invoice. Time spent is the span between a user's first and last request within an hour, summed, so it cannot see somebody reading an answer without clicking.
+
 ## Known limitations
 
 - **No password reset.** There is no mail transport configured.
@@ -147,22 +157,27 @@ Not supported, by design: OCR of scanned PDFs, and transcription of videos with 
 - **Uploads are held in memory**, so ten 50 MB PDFs at once is 500 MB resident.
 - **The SSRF check** resolves the hostname at create time and again at fetch time, which closes the obvious hole but not every rebinding race.
 - **Retrieval latency** is above the 3 second target on the full pipeline. `npm run eval` will say which stage to drop.
-- **Organisation level multi tenancy** — shared workspaces, roles — is out of scope. Accounts are individual.
+- **Organisation level multi tenancy**, meaning shared workspaces and roles, is out of scope. Accounts are individual.
 
 ## Testing
 
 ```bash
-cd server && npm test          # 137 tests against a real Postgres and Qdrant
-cd client && npm run e2e       # Playwright, needs the API and worker running
+cd server && npm test          # 233 tests against a real Postgres and Qdrant
+cd client && npm test          # 43 component and render tests
+cd server && npm run eval      # ablation: what each retrieval stage is worth
 ```
 
 The suite forces the fake embedding provider and reports no LLM credentials, so it behaves the same whether or not you have a key. A test that only passes because a credential is missing proves nothing.
 
 ## Documentation
 
+- [`docs/system-design.md`](docs/system-design.md), the long one: the whole system, why basic RAG fails, and an argument against every choice made here
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), components and data flow
 - [`docs/RETRIEVAL.md`](docs/RETRIEVAL.md), one real question traced end to end
-- [`server/README.md`](server/README.md), API reference, queues, troubleshooting
+- [`docs/DATA-FLOW-YOUTUBE.md`](docs/DATA-FLOW-YOUTUBE.md), a YouTube link from paste to citation
+- [`docs/PODCAST.md`](docs/PODCAST.md), how two hosts get written and synthesised
+- [`docs/PRICING.md`](docs/PRICING.md), the credit model and what each action costs
+- [`docs/DEPLOY.md`](docs/DEPLOY.md), Vercel, the VPS, Caddy and backups
 - [`client/README.md`](client/README.md), the frontend
 
 The full specification lives in `../doc-chat/`: `PRD.md`, `REQUIREMENTS.md` and `PLANNING.md`.
