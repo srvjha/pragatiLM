@@ -13,6 +13,7 @@ import {
 } from "@/components/admin/overview-tiles";
 import { GrowthChart } from "@/components/admin/growth-chart";
 import { UsersTable } from "@/components/admin/users-table";
+import { CostDonut } from "@/components/admin/cost-donut";
 import { AiUsage } from "@/components/admin/ai-usage";
 import { PerformanceTable } from "@/components/admin/performance-table";
 import { AuditLog } from "@/components/admin/audit-log";
@@ -92,7 +93,7 @@ export default function AdminPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell rail={false}>
       <div className="mx-auto max-w-7xl px-6 py-10">
         <header className="mb-9">
           <Button
@@ -194,6 +195,22 @@ export default function AdminPage() {
             </div>
 
             <Panel
+              id="users"
+              title="Users"
+              blurb="Newest first. Any column sorts."
+              aside={`${users.data?.length ?? 0} shown`}
+              dimmed={users.isFetching && users.data !== undefined}
+            >
+              {users.isPending && <Skeleton className="h-80 rounded-xl" />}
+              {users.isError && (
+                <PanelError>
+                  Could not load the accounts. Refresh to try again.
+                </PanelError>
+              )}
+              {users.data && <UsersTable rows={users.data} />}
+            </Panel>
+
+            <Panel
               id="growth"
               title="Growth"
               blurb="Signups against the people who came back."
@@ -212,22 +229,6 @@ export default function AdminPage() {
             </Panel>
 
             <Panel
-              id="users"
-              title="Users"
-              blurb="Newest first. Any column sorts."
-              aside={`${users.data?.length ?? 0} shown`}
-              dimmed={users.isFetching && users.data !== undefined}
-            >
-              {users.isPending && <Skeleton className="h-80 rounded-xl" />}
-              {users.isError && (
-                <PanelError>
-                  Could not load the accounts. Refresh to try again.
-                </PanelError>
-              )}
-              {users.data && <UsersTable rows={users.data} />}
-            </Panel>
-
-            <Panel
               id="ai"
               title="AI usage"
               blurb="Estimated cost and tokens, by feature."
@@ -241,11 +242,21 @@ export default function AdminPage() {
                 </PanelError>
               )}
               {ai.data && (
-                <AiUsage
-                  rows={ai.data}
-                  days={days}
-                  pricesUpdated={overview.data?.ai.pricesUpdated ?? null}
-                />
+                <div className="space-y-6">
+                  {/* The donut answers "what is driving the bill" at a glance.
+                      The table under it carries the numbers, and carries the
+                      features the donut folded into Other, which would
+                      otherwise lose their values entirely. */}
+                  <CostDonut
+                    rows={ai.data}
+                    pricesUpdated={overview.data?.ai.pricesUpdated ?? "-"}
+                  />
+                  <AiUsage
+                    rows={ai.data}
+                    days={days}
+                    pricesUpdated={overview.data?.ai.pricesUpdated ?? null}
+                  />
+                </div>
               )}
             </Panel>
 

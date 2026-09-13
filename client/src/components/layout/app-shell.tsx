@@ -22,11 +22,21 @@ import { useUiStore } from "@/stores/ui-store";
 export function AppShell({
   children,
   notebookId,
+  rail = true,
 }: {
   children: React.ReactNode;
   /** Shown in the header, so the current notebook is named even when the rail
       is collapsed into a drawer. */
   notebookId?: string;
+  /**
+   * Whether to show the notebook rail.
+   *
+   * The admin dashboard is the one page in the app that is not about a
+   * notebook, and a list of the reader's own notebooks beside a table of every
+   * account on the deployment is a category error: it invites you to think the
+   * numbers are scoped to the notebook you can see, and they are not.
+   */
+  rail?: boolean;
 }) {
   const { data: notebooks } = useNotebooks();
   const { railOpen, setRailOpen } = useUiStore();
@@ -57,7 +67,7 @@ export function AppShell({
         Skip to content
       </a>
 
-      <TopBar notebookId={notebookId} />
+      <TopBar notebookId={notebookId} rail={rail} />
 
       <div className="relative flex min-h-0 flex-1">
         {railOpen && (
@@ -74,19 +84,21 @@ export function AppShell({
           screen: focus vanished and the page appeared to stop responding to the
           keyboard. Only transform moves, so the slide is composited.
         */}
-        <aside
-          inert={!railIsStatic && !railOpen}
-          className={cn(
-            "bg-sidebar border-sidebar-border z-40 w-72 shrink-0 border-r",
-            "fixed inset-y-0 top-14 left-0 transition-transform duration-200 ease-out motion-reduce:transition-none lg:static lg:top-0 lg:translate-x-0",
-            railOpen ? "translate-x-0" : "-translate-x-full",
-          )}
-          aria-label="Notebooks"
-        >
-          <PanelErrorBoundary label="notebook list">
-            <Rail />
-          </PanelErrorBoundary>
-        </aside>
+        {rail ? (
+          <aside
+            inert={!railIsStatic && !railOpen}
+            className={cn(
+              "bg-sidebar border-sidebar-border z-40 w-72 shrink-0 border-r",
+              "fixed inset-y-0 top-14 left-0 transition-transform duration-200 ease-out motion-reduce:transition-none lg:static lg:top-0 lg:translate-x-0",
+              railOpen ? "translate-x-0" : "-translate-x-full",
+            )}
+            aria-label="Notebooks"
+          >
+            <PanelErrorBoundary label="notebook list">
+              <Rail />
+            </PanelErrorBoundary>
+          </aside>
+        ) : null}
 
         <main id="workspace" className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           {children}
