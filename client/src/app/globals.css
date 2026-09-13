@@ -126,6 +126,16 @@
   --chart-4: #7d8798;
   --chart-5: #101318;
 
+  /* Donut segments for the admin dashboard. Four steps, not more: the palette
+     validator fails five on the normal-vision floor (dE 8.5 against 15), which
+     means a reader with full colour vision cannot separate two neighbouring
+     slices. These four pass at dE 16.5 light and 18.0 dark. Marker is not used:
+     it is reserved for citations. */
+  --admin-donut-1: #101318;
+  --admin-donut-2: #4a5462;
+  --admin-donut-3: #8b95a4;
+  --admin-donut-4: #c3c8d0;
+
   /* 4px. Crisp rather than pill shaped, but not the zero radius that reads as
      a newspaper pastiche. */
   --radius: 0.25rem;
@@ -175,6 +185,11 @@
   --chart-2: #97a1b0;
   --chart-3: #e0616e;
   --chart-4: #6b7686;
+
+  --admin-donut-1: #e8eaed;
+  --admin-donut-2: #a8b1be;
+  --admin-donut-3: #6b7686;
+  --admin-donut-4: #3a424e;
   --chart-5: #e8eaed;
 
   --sidebar: #141820;

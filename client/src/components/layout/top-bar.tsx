@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Wordmark } from "@/components/brand/wordmark";
 import { AccountMenu } from "@/components/auth/account-menu";
+import { AdminLink } from "@/components/admin/admin-link";
 import { CreditMeter } from "@/components/billing/credit-meter";
 import { useNotebooks } from "@/features/notebooks/hooks";
 import { useUiStore } from "@/stores/ui-store";
@@ -26,7 +27,14 @@ import { useUiStore } from "@/stores/ui-store";
  * size and cannot move, so the rest matches it rather than leaving a row of
  * near-misses that read as sloppy at a glance.
  */
-export function TopBar({ notebookId }: { notebookId?: string }) {
+export function TopBar({
+  notebookId,
+  rail = true,
+}: {
+  notebookId?: string;
+  /** False on pages with no notebook rail, so the toggle does not open nothing. */
+  rail?: boolean;
+}) {
   const { toggleRail, setSwitcherOpen, railOpen } = useUiStore();
   const { data: notebooks } = useNotebooks();
 
@@ -34,23 +42,25 @@ export function TopBar({ notebookId }: { notebookId?: string }) {
 
   return (
     <header className="bg-background flex h-14 shrink-0 items-center gap-1.5 border-b px-3">
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden"
-              onClick={toggleRail}
-              aria-label="Toggle notebooks"
-              aria-expanded={railOpen}
-            >
-              <Menu className="size-4" />
-            </Button>
-          }
-        />
-        <TooltipContent>Notebooks</TooltipContent>
-      </Tooltip>
+      {rail ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden"
+                onClick={toggleRail}
+                aria-label="Toggle notebooks"
+                aria-expanded={railOpen}
+              >
+                <Menu className="size-4" />
+              </Button>
+            }
+          />
+          <TooltipContent>Notebooks</TooltipContent>
+        </Tooltip>
+      ) : null}
 
       <Wordmark href="/notebooks" size="md" />
 
@@ -124,6 +134,8 @@ export function TopBar({ notebookId }: { notebookId?: string }) {
           />
           <TooltipContent>Search notebooks</TooltipContent>
         </Tooltip>
+
+        <AdminLink />
 
         <CreditMeter />
 

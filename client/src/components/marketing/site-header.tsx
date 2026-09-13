@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Wordmark } from "@/components/brand/wordmark";
 import { useSession } from "@/lib/auth-client";
 import { AccountMenu } from "@/components/auth/account-menu";
+import { AdminLink } from "@/components/admin/admin-link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
@@ -86,6 +87,7 @@ export function SiteHeader() {
 
           {!isPending && session && (
             <>
+              <AdminLink />
               <Button
                 size="sm"
                 nativeButton={false}
