@@ -1,6 +1,14 @@
 # pragatiLM
 
-**[pragati.srvjha.in](https://pragati.srvjha.in)**
+A research notebook that answers only from the sources you give it, and shows you the page, paragraph or second behind every sentence.
+
+**[Try it](https://pragati.srvjha.in)**
+&nbsp;·&nbsp;
+**[Watch the launch video](https://youtu.be/qd-eZ65alMo)**
+&nbsp;·&nbsp;
+**[How it was built](https://x.com/J_srv001/status/2098836591511027801)**
+
+---
 
 An AI research assistant. Create a notebook, add sources to it (PDF, text, web page, YouTube video, VTT transcript), and ask questions answered **only** from those sources. Every answer carries citations, and clicking one opens the original at the exact page, timestamp or character range the answer came from. When the sources cannot support an answer, it says so instead of inventing one.
 
