@@ -80,6 +80,31 @@ const schema = z.object({
       (origins) => origins.every((origin) => URL.canParse(origin)),
       "every origin must be a full URL, for example http://localhost:3000",
     ),
+  /**
+   * Who may open the admin dashboard, as a comma separated list of emails.
+   *
+   * Empty by default, and empty means the dashboard is off. Admin is the one
+   * permission in this system that can read every account and hand out credit,
+   * so it fails closed: a misconfigured deployment loses a dashboard, where a
+   * guessed default would hand someone else the keys.
+   *
+   * An env var rather than a column on purpose. There is no UI that can grant
+   * it, nothing in the database can escalate to it, and changing who has it
+   * requires access to the server.
+   */
+  ADMIN_EMAILS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+
+  /** How long raw request metrics are kept before the cleanup queue trims them. */
+  ADMIN_METRICS_RETENTION_DAYS: positiveInt.default(30),
+
   WORKER_QUEUES: z
     .string()
     .default("chat,ingest,cleanup,roadmap,podcast")
@@ -294,6 +319,20 @@ export const isDevelopment = env.NODE_ENV === "development";
  */
 export const authSecret =
   env.BETTER_AUTH_SECRET ?? "development-only-insecure-secret-do-not-deploy";
+
+/**
+ * Whether an email may administer this deployment.
+ *
+ * Compared lowercase because email case is not significant to a mailbox and a
+ * capitalised address in the env file should not silently lock the owner out.
+ */
+export function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return env.ADMIN_EMAILS.includes(email.trim().toLowerCase());
+}
+
+/** True when anyone at all can administer this deployment. */
+export const adminEnabled = env.ADMIN_EMAILS.length > 0;
 
 /** A social provider exists only when both halves of its credential are set. */
 export const socialProviders = {

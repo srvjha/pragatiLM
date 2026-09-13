@@ -33,3 +33,11 @@ backups/
 # for one reader, revised constantly, and full of judgement calls that would
 # read as commitments if they were in the repository's history.
 FUTURE-CHECKS.md
+
+# Launch video working projects. Large captures and renders, rebuilt on demand
+# from ~/.claude/skills/product-launch-video. The finished films live outside
+# the repo at ../pragatilm-launch.
+launch-video*/
+pragati.md
+skills-lock.json
+system-design.md

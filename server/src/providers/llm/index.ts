@@ -1,5 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { env } from "@/config/env";
+import { usageCallback } from "./usage";
 
 /**
  * Chat models behind one accessor. Three roles, deliberately separate: answering
@@ -21,7 +22,26 @@ const modelNames: Record<ModelRole, () => string> = {
   translator: () => env.TRANSLATE_MODEL,
 };
 
-const cache = new Map<ModelRole, ChatOpenAI>();
+/**
+ * Keyed by role AND temperature.
+ *
+ * It used to be keyed by role alone, which silently broke every caller that
+ * asked for a different temperature: `chat` is requested at 0.1 for answering,
+ * 0.6 for podcast scripts and 0.2 for roadmaps, and whichever ran first won for
+ * the lifetime of the process. The podcast's deliberate looseness and HyDE's
+ * 0.3 were simply not applied.
+ */
+const cache = new Map<string, ChatOpenAI>();
+
+/**
+ * Test doubles, by role, ahead of the cache.
+ *
+ * Separate from the cache because the cache is keyed by temperature and a test
+ * that replaces "chat" means every temperature of it. Folding the two together
+ * meant a double registered under one key and callers asking for another,
+ * which is a silent miss rather than a failure.
+ */
+const overrides = new Map<ModelRole, ChatOpenAI>();
 
 /**
  * Whether a real model can be called.
@@ -43,26 +63,35 @@ export function hasLlmCredentials(): boolean {
 }
 
 export function chatModel(role: ModelRole, temperature = 0): ChatOpenAI {
-  const existing = cache.get(role);
+  const override = overrides.get(role);
+  if (override) return override;
+
+  const key = `${role}:${temperature}`;
+  const existing = cache.get(key);
   if (existing) return existing;
 
   if (!env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not set, so no model call can be made.");
   }
 
+  const name = modelNames[role]();
   const model = new ChatOpenAI({
     apiKey: env.OPENAI_API_KEY,
-    model: modelNames[role](),
+    model: name,
     temperature,
     maxRetries: 2,
+    // Attached here so every call site is instrumented by construction. A
+    // caller that forgets is not possible, which is the only way a usage table
+    // stays trustworthy.
+    callbacks: [usageCallback(role, name)],
   });
 
-  cache.set(role, model);
+  cache.set(key, model);
   return model;
 }
 
 /** Tests replace the model rather than the network. */
 export function setChatModel(role: ModelRole, model: ChatOpenAI | null): void {
-  if (model) cache.set(role, model);
-  else cache.delete(role);
+  if (model) overrides.set(role, model);
+  else overrides.delete(role);
 }

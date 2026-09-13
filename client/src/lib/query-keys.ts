@@ -26,6 +26,24 @@ export const queryKeys = {
     invoices: () => [...queryKeys.billing.all, "invoices"] as const,
   },
 
+  /**
+   * The admin dashboard. Keyed under one prefix so a grant can invalidate the
+   * panels it changed without naming every window the tables might be showing.
+   */
+  admin: {
+    all: ["admin"] as const,
+    me: () => [...queryKeys.admin.all, "me"] as const,
+    overview: () => [...queryKeys.admin.all, "overview"] as const,
+    signups: (days: number) =>
+      [...queryKeys.admin.all, "signups", days] as const,
+    usersAll: () => [...queryKeys.admin.all, "users"] as const,
+    users: (limit: number) => [...queryKeys.admin.usersAll(), limit] as const,
+    ai: (days: number) => [...queryKeys.admin.all, "ai", days] as const,
+    performance: (days: number) =>
+      [...queryKeys.admin.all, "performance", days] as const,
+    audit: () => [...queryKeys.admin.all, "audit"] as const,
+  },
+
   roadmap: (notebookId: string) => ["roadmap", notebookId] as const,
   podcasts: (notebookId: string) => ["podcasts", notebookId] as const,
 

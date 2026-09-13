@@ -7,6 +7,7 @@ import { completeMessage } from "@/db/repositories/chat.repository";
 import { refundCharge } from "@/services/billing/entitlements.service";
 import { emit } from "@/lib/chat-stream";
 import { childLogger } from "@/lib/logger";
+import { withUsageContext } from "@/providers/llm/usage";
 
 const log = childLogger("worker:chat");
 
@@ -16,10 +17,16 @@ export function createChatWorker(): Worker<AnswerJob> {
   const worker = new Worker<AnswerJob>(
     QUEUE_NAMES.chat,
     (job: Job<AnswerJob>) =>
-      pTimeout(answerQuestion(job.data), {
-        milliseconds: JOB_TIMEOUT_MS,
-        message: "The answer took too long and was stopped.",
-      }),
+      // Every model call this job makes, at any depth, is attributed to this
+      // user and feature. Threading a userId through translate, route, grade
+      // and the corrective loop would mean changing signatures that have no
+      // use for it.
+      withUsageContext({ userId: job.data.credit?.userId ?? null, feature: "chat" }, () =>
+        pTimeout(answerQuestion(job.data), {
+          milliseconds: JOB_TIMEOUT_MS,
+          message: "The answer took too long and was stopped.",
+        }),
+      ),
     { connection, concurrency: env.CHAT_QUEUE_CONCURRENCY, lockDuration: 90_000 },
   );
 

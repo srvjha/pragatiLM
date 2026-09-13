@@ -11,6 +11,7 @@ import { childLogger } from "@/lib/logger";
 import type { CreditCharge } from "@/billing/costs";
 import type { VoicePair } from "@/providers/tts";
 import type { PodcastLanguage } from "@/types/domain";
+import { withUsageContext } from "@/providers/llm/usage";
 
 const log = childLogger("worker:podcast");
 
@@ -25,6 +26,12 @@ export type PodcastJob = {
 };
 
 async function run(job: Job<PodcastJob>): Promise<void> {
+  return withUsageContext({ userId: job.data.credit?.userId ?? null, feature: "podcast" }, () =>
+    runInner(job),
+  );
+}
+
+async function runInner(job: Job<PodcastJob>): Promise<void> {
   const { podcastId, notebookId, sourceIds, lengthMinutes, voicePair, language } = job.data;
 
   // FR-7.3: the stage the user sees is the stage the job is actually in, not a

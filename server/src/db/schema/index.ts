@@ -8,3 +8,4 @@ export * from "./retrieval-runs";
 export * from "./chats";
 export * from "./artifacts";
 export * from "./billing";
+export * from "./telemetry";
