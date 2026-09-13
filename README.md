@@ -171,7 +171,6 @@ The suite forces the fake embedding provider and reports no LLM credentials, so 
 
 ## Documentation
 
-- [`docs/system-design.md`](docs/system-design.md), the long one: the whole system, why basic RAG fails, and an argument against every choice made here
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), components and data flow
 - [`docs/RETRIEVAL.md`](docs/RETRIEVAL.md), one real question traced end to end
 - [`docs/DATA-FLOW-YOUTUBE.md`](docs/DATA-FLOW-YOUTUBE.md), a YouTube link from paste to citation
