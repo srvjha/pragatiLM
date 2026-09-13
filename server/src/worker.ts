@@ -8,7 +8,7 @@ import { closeChatStream } from "@/lib/chat-stream";
 import { closeQueues, QUEUE_NAMES } from "@/queues";
 import { ensureCollection } from "@/vector/qdrant.repository";
 import { createIngestWorker } from "@/workers/ingest.worker";
-import { createCleanupWorker } from "@/workers/cleanup.worker";
+import { createCleanupWorker, trimRequestMetrics } from "@/workers/cleanup.worker";
 import { createChatWorker } from "@/workers/chat.worker";
 import { createRoadmapWorker } from "@/workers/roadmap.worker";
 import { createPodcastWorker } from "@/workers/podcast.worker";
@@ -54,6 +54,27 @@ log.info({ queues: env.WORKER_QUEUES, active: workers.length }, "worker started"
 // which are the same spinner from the outside.
 const stopHeartbeat = startHeartbeat(env.WORKER_QUEUES);
 
+/**
+ * Trim the metrics table on start and once a day after.
+ *
+ * A plain interval rather than a repeatable job: this is a delete against one
+ * indexed column, it does not need to survive a restart or be observable in a
+ * queue, and a repeatable job would need its own schema and dedupe key to avoid
+ * running in every replica. Failures are logged and skipped, because an
+ * un-trimmed metrics table is a disk space problem and not an incident.
+ */
+void trimRequestMetrics().catch((error: unknown) =>
+  log.warn({ err: error }, "could not trim request metrics at startup"),
+);
+const trimTimer = setInterval(
+  () =>
+    void trimRequestMetrics().catch((error: unknown) =>
+      log.warn({ err: error }, "could not trim request metrics"),
+    ),
+  24 * 60 * 60 * 1000,
+);
+trimTimer.unref();
+
 let shuttingDown = false;
 
 /**
@@ -70,6 +91,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   // Stopped first, so a worker that is draining stops advertising itself and
   // the key expires rather than being refreshed on the way out.
   stopHeartbeat();
+  clearInterval(trimTimer);
 
   const forceExit = setTimeout(() => {
     log.error("forced exit, jobs still running will be requeued as stalled");

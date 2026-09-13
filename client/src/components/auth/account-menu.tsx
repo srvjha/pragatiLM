@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, CreditCard, LogOut, NotebookPen } from "lucide-react";
+import {
+  BarChart3,
+  CreditCard,
+  LogOut,
+  NotebookPen,
+  Shield,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useSession } from "@/lib/auth-client";
 import { useSignOut } from "@/features/auth/hooks";
+import { useIsAdmin } from "@/features/admin/hooks";
 
 /**
  * The account control, shared by the landing header and the app header.
@@ -26,6 +33,10 @@ export function AccountMenu() {
   const { data: session } = useSession();
   const signOut = useSignOut();
   const router = useRouter();
+  // The panel refuses everybody else with a 404, so this is false for almost
+  // every session and the menu simply has one item fewer. It is the only way
+  // into /admin, which is otherwise an unlinked path.
+  const isAdmin = useIsAdmin();
 
   if (!session) return null;
 
@@ -81,6 +92,12 @@ export function AccountMenu() {
           <CreditCard className="size-3.5" />
           Plan and usage
         </DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem onClick={() => router.push("/admin")}>
+            <Shield className="size-3.5" />
+            Admin
+          </DropdownMenuItem>
+        )}
 
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => void signOut()}>

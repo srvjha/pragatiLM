@@ -7,6 +7,10 @@ import {
 } from "@/vector/chunk.vector-repository";
 import { listAllSourceIds } from "@/db/repositories/source.repository";
 import { childLogger } from "@/lib/logger";
+import { db } from "@/db/client";
+import { requestMetrics } from "@/db/schema";
+import { env } from "@/config/env";
+import { lt, sql } from "drizzle-orm";
 
 const log = childLogger("worker:cleanup");
 
@@ -48,6 +52,34 @@ export async function reconcileOrphans(): Promise<number> {
 
   if (removed > 0) log.warn({ removed }, "removed orphaned vectors");
   return removed;
+}
+
+/**
+ * Trims raw request metrics past their retention window.
+ *
+ * One row per request is cheap at this traffic and expensive forever. Kept as
+ * raw rows rather than pre-aggregated buckets because percentiles over raw data
+ * are honest and aggregation throws away exactly the outliers worth looking at,
+ * so the cost of that choice is paid here instead.
+ *
+ * Only request_metrics is trimmed. llm_usage is cost history and admin_audit is
+ * a record of who did what: both are small, both get more valuable with age,
+ * and deleting either to save a few megabytes would be a bad trade.
+ */
+export async function trimRequestMetrics(): Promise<number> {
+  const cutoff = sql`now() - ${`${env.ADMIN_METRICS_RETENTION_DAYS} days`}::interval`;
+  const deleted = await db
+    .delete(requestMetrics)
+    .where(lt(requestMetrics.createdAt, cutoff))
+    .returning({ id: requestMetrics.id });
+
+  if (deleted.length > 0) {
+    log.info(
+      { removed: deleted.length, days: env.ADMIN_METRICS_RETENTION_DAYS },
+      "trimmed request metrics",
+    );
+  }
+  return deleted.length;
 }
 
 export function createCleanupWorker(): Worker<PurgeJob> {

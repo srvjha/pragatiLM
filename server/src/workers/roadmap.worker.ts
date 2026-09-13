@@ -7,6 +7,7 @@ import { channels, publish } from "@/lib/events";
 import { childLogger } from "@/lib/logger";
 import type { CreditCharge } from "@/billing/costs";
 import type { RoadmapLevel } from "@/db/schema";
+import { withUsageContext } from "@/providers/llm/usage";
 
 const log = childLogger("worker:roadmap");
 
@@ -20,6 +21,12 @@ export type RoadmapJob = {
 };
 
 async function run(job: Job<RoadmapJob>): Promise<void> {
+  return withUsageContext({ userId: job.data.credit?.userId ?? null, feature: "roadmap" }, () =>
+    runInner(job),
+  );
+}
+
+async function runInner(job: Job<RoadmapJob>): Promise<void> {
   const { notebookId, level, goal, sourceIds = [] } = job.data;
 
   /**

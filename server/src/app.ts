@@ -11,6 +11,8 @@ import { logger } from "@/lib/logger";
 import { healthRouter } from "@/routes/health.route";
 import { notebookRouter } from "@/routes/notebook.route";
 import { billingRouter, handleWebhook } from "@/routes/billing.route";
+import { adminDashboardRouter } from "@/routes/admin-dashboard.route";
+import { requestMetricsMiddleware } from "@/middleware/metrics";
 import { analyticsRouter } from "@/routes/analytics.route";
 import { errorHandler, notFoundHandler } from "@/middleware/error";
 import { createAdminRouter } from "@/routes/admin.route";
@@ -70,6 +72,11 @@ export function createApp(): Express {
 
   app.use(express.json({ limit: "1mb" }));
 
+  // After the body parser so it does not time parsing it, and ahead of every
+  // router so nothing escapes measurement. The row is written on finish, so
+  // this adds nothing to a response's latency.
+  app.use(requestMetricsMiddleware);
+
   if (isDevelopment) {
     // Bull Board serves its own assets, which the default helmet CSP blocks.
     app.use("/admin/queues", helmet({ contentSecurityPolicy: false }), createAdminRouter());
@@ -79,6 +86,7 @@ export function createApp(): Express {
   app.use("/api", billingRouter);
   app.use("/api", analyticsRouter);
   app.use("/api", notebookRouter);
+  app.use("/api", adminDashboardRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
