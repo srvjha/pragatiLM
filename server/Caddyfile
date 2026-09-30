@@ -37,3 +37,10 @@ backend-pragati.srvjha.in {
 		}
 	}
 }
+
+# Shortlist API (github.com/srvjha/resume-builder), a separate compose project that joins this network.
+api.shortlist.co.in {
+	encode zstd gzip
+	reverse_proxy shortlist-api:4000
+	header -Server
+}
