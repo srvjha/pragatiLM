@@ -1,5 +1,21 @@
 name: pragati
 
+# Two networks, deliberately.
+#
+# pragati-backend is private: the datastores have no passwords, and the design
+# assumes nothing foreign can reach them. That assumption was quietly broken
+# when another product's api container was attached to this project's default
+# network, which also collided on the DNS name "api" and sent roughly half of
+# this API's traffic into the wrong application.
+#
+# caddy-edge is the shared doorway, created outside both projects so neither
+# owns it. Only Caddy and the things it proxies to belong on it.
+networks:
+  pragati-backend:
+    name: pragati-backend
+  caddy-edge:
+    external: true
+
 # Production. The difference from docker-compose.yml is not the images, it is
 # what is reachable: development publishes Postgres, Redis and Qdrant to the
 # host because that is convenient on a laptop. On a public address it would
@@ -14,6 +30,7 @@ name: pragati
 
 services:
   caddy:
+    networks: [caddy-edge]
     image: caddy:2-alpine
     restart: unless-stopped
     # The only two ports open to the world. 80 is not for the app; it is how
@@ -32,6 +49,7 @@ services:
       - api
 
   postgres:
+    networks: [pragati-backend]
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -48,6 +66,7 @@ services:
       start_period: 10s
 
   redis:
+    networks: [pragati-backend]
     image: redis:7-alpine
     restart: unless-stopped
     volumes:
@@ -59,6 +78,7 @@ services:
       retries: 10
 
   qdrant:
+    networks: [pragati-backend]
     image: qdrant/qdrant:v1.18.3
     restart: unless-stopped
     volumes:
@@ -74,6 +94,7 @@ services:
   # Runs once and exits. The API waits for it to succeed, so a deploy that
   # ships a migration can never serve requests against the old schema.
   migrate:
+    networks: [pragati-backend]
     build: .
     restart: "no"
     command: ["node", "dist/db/migrate.js"]
@@ -85,6 +106,12 @@ services:
         condition: service_healthy
 
   api:
+    networks:
+      pragati-backend:
+      caddy-edge:
+        # An explicit alias, so Caddy never has to address this by its
+        # service name, which any other stack on the edge could also claim.
+        aliases: [pragati-api]
     build: .
     restart: unless-stopped
     command: ["node", "dist/index.js"]
@@ -104,6 +131,7 @@ services:
         condition: service_healthy
 
   worker:
+    networks: [pragati-backend]
     build: .
     restart: unless-stopped
     command: ["node", "dist/worker.js"]

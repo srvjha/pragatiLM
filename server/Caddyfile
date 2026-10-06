@@ -14,7 +14,7 @@
 backend-pragati.srvjha.in {
 	# The API is not published to the host at all; this name resolves on the
 	# compose network.
-	reverse_proxy api:4000 {
+	reverse_proxy pragati-api:4000 {
 		# Server-sent events carry the answer as it is generated. Without
 		# this, Caddy buffers the response and the whole point of streaming
 		# is lost: the reader waits, sees nothing, then gets everything.
