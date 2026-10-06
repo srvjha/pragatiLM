@@ -38,7 +38,9 @@ backend-pragati.srvjha.in {
 	}
 }
 
-# Shortlist API (github.com/srvjha/resume-builder), a separate compose project that joins this network.
+# Shortlist API (github.com/srvjha/resume-builder), a separate compose project.
+# It is reachable because both it and this proxy sit on the external caddy-edge
+# network. It is deliberately NOT on pragati-backend, where the datastores live.
 api.shortlist.co.in {
 	encode zstd gzip
 	reverse_proxy shortlist-api:4000
