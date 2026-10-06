@@ -122,7 +122,23 @@ jobs:
             # The migrate service runs first and the api waits for it to
             # succeed, so a deploy carrying a schema change can never serve
             # requests against the old schema.
-            docker compose -f docker-compose.prod.yml up -d --build
+            #
+            # --force-recreate because without it compose only recreates
+            # containers whose image changed, and leaves the rest running on
+            # whatever they were started with. That is wrong whenever the
+            # compose file itself changed: a renamed network is created, the old
+            # one deleted, and the untouched datastore containers keep
+            # referencing a network that no longer exists. They then fail to
+            # start with "could not find a network matching network mode", and
+            # the api goes down with them. A bind-mounted config file has the
+            # same shape of problem, because a restart keeps the old inode.
+            #
+            # The cost is that every deploy restarts Postgres, Redis and Qdrant
+            # rather than just the api and worker, which adds a few seconds to
+            # the 502 window. Worth it: the failure it prevents is a deploy that
+            # cannot come back up at all, and the health gate below only tells
+            # us about it after the fact.
+            docker compose -f docker-compose.prod.yml up -d --build --force-recreate
 
             # Old images are what actually fill this disk: every --build leaves
             # the previous one behind. Volumes and running images are untouched.
